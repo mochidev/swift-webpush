@@ -1,0 +1,171 @@
+//
+//  VAPIDConfiguration.swift
+//  swift-webpush
+//
+//  Created by Dimitri Bouniol on 2024-12-04.
+//  Copyright © 2024 Mochi Development, Inc. All rights reserved.
+//
+
+import Foundation
+
+extension VoluntaryApplicationServerIdentification {
+    public struct Configuration: Hashable, Codable, Sendable {
+        /// The VAPID key that identifies the push service to subscribers.
+        ///
+        /// This key should be shared by all instances of your push service, and should be kept secure. Rotating this key is not recommended as you'll lose access to subscribers that registered against it.
+        ///
+        /// Some implementations will choose to use different keys per subscriber. In that case, choose to provide a set of keys instead.
+        public var primaryKey: Key?
+        public var keys: Set<Key>
+        public var deprecatedKeys: Set<Key>?
+        public var contactInformation: ContactInformation
+        public var expirationDuration: Duration
+        public var validityDuration: Duration
+        
+        public init(
+            key: Key,
+            deprecatedKeys: Set<Key>? = nil,
+            contactInformation: ContactInformation,
+            expirationDuration: Duration = .hours(22),
+            validityDuration: Duration = .hours(20)
+        ) {
+            self.primaryKey = key
+            self.keys = [key]
+            var deprecatedKeys = deprecatedKeys ?? []
+            deprecatedKeys.remove(key)
+            self.deprecatedKeys = deprecatedKeys.isEmpty ? nil : deprecatedKeys
+            self.contactInformation = contactInformation
+            self.expirationDuration = expirationDuration
+            self.validityDuration = validityDuration
+        }
+        
+        public init(
+            primaryKey: Key?,
+            keys: Set<Key>,
+            deprecatedKeys: Set<Key>? = nil,
+            contactInformation: ContactInformation,
+            expirationDuration: Duration = .hours(22),
+            validityDuration: Duration = .hours(20)
+        ) throws {
+            self.primaryKey = primaryKey
+            var keys = keys
+            if let primaryKey {
+                keys.insert(primaryKey)
+            }
+            guard !keys.isEmpty
+            else { throw CancellationError() } // TODO: No keys error
+            
+            self.keys = keys
+            var deprecatedKeys = deprecatedKeys ?? []
+            deprecatedKeys.subtract(keys)
+            self.deprecatedKeys = deprecatedKeys.isEmpty ? nil : deprecatedKeys
+            self.contactInformation = contactInformation
+            self.expirationDuration = expirationDuration
+            self.validityDuration = validityDuration
+        }
+        
+        public init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            
+            let primaryKey = try container.decodeIfPresent(Key.self, forKey: CodingKeys.primaryKey)
+            let keys = try container.decode(Set<Key>.self, forKey: CodingKeys.keys)
+            let deprecatedKeys = try container.decodeIfPresent(Set<Key>.self, forKey: CodingKeys.deprecatedKeys)
+            let contactInformation = try container.decode(ContactInformation.self, forKey: CodingKeys.contactInformation)
+            let expirationDuration = try container.decode(Duration.self, forKey: CodingKeys.expirationDuration)
+            let validityDuration = try container.decode(Duration.self, forKey: CodingKeys.validityDuration)
+            
+            try self.init(
+                primaryKey: primaryKey,
+                keys: keys,
+                deprecatedKeys: deprecatedKeys,
+                contactInformation: contactInformation,
+                expirationDuration: expirationDuration,
+                validityDuration: validityDuration
+            )
+        }
+    }
+}
+
+extension VAPID.Configuration {
+    public enum ContactInformation: Hashable, Codable, Sendable {
+        case url(URL)
+        case email(String)
+        
+        var urlString: String {
+            switch self {
+            case .url(let url):     url.absoluteURL.absoluteString
+            case .email(let email): "mailto:\(email)"
+            }
+        }
+        
+        public init(from decoder: any Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let url = try container.decode(URL.self)
+            
+            switch url.scheme?.lowercased() {
+            case "mailto":
+                let email = String(url.absoluteString.dropFirst("mailto:".count))
+                if !email.isEmpty {
+                    self = .email(email)
+                } else {
+                    throw DecodingError.typeMismatch(URL.self, .init(codingPath: decoder.codingPath, debugDescription: "Found a mailto URL with no email."))
+                }
+            case "http", "https":
+                self = .url(url)
+            default:
+                throw DecodingError.typeMismatch(URL.self, .init(codingPath: decoder.codingPath, debugDescription: "Expected a mailto or http(s) URL, but found neither."))
+            }
+        }
+        
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(urlString)
+        }
+    }
+    
+    public struct Duration: Hashable, Comparable, Codable, ExpressibleByIntegerLiteral, AdditiveArithmetic, Sendable {
+        public let seconds: Int
+        
+        public init(seconds: Int) {
+            self.seconds = seconds
+        }
+        
+        public static func < (lhs: Self, rhs: Self) -> Bool {
+            lhs.seconds < rhs.seconds
+        }
+        
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            self.seconds = try container.decode(Int.self)
+        }
+        
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(self.seconds)
+        }
+        
+        public init(integerLiteral value: Int) {
+            self.seconds = value
+        }
+        
+        public static func - (lhs: Self, rhs: Self) -> Self {
+            Self(seconds: lhs.seconds - rhs.seconds)
+        }
+        
+        public static func + (lhs: Self, rhs: Self) -> Self {
+            Self(seconds: lhs.seconds + rhs.seconds)
+        }
+        
+        public static func seconds(_ seconds: Int) -> Self {
+            Self(seconds: seconds)
+        }
+        
+        public static func minutes(_ minutes: Int) -> Self {
+            Self(seconds: minutes*60)
+        }
+        
+        public static func hours(_ hours: Int) -> Self {
+            Self(seconds: hours*60*60)
+        }
+    }
+}

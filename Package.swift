@@ -15,11 +15,13 @@ let package = Package(
         .library(name: "WebPush", targets: ["WebPush"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/apple/swift-crypto.git", "3.10.0"..<"5.0.0"),
     ],
     targets: [
         .target(
             name: "WebPush",
             dependencies: [
+                .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),
         .testTarget(name: "WebPushTests", dependencies: ["WebPush"]),
