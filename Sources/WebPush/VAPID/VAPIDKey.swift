@@ -69,6 +69,6 @@ extension VAPID.Key: Identifiable {
     }
     
     public var id: ID {
-        ID(privateKey.publicKey.x963Representation.base64EncodedString()) // TODO: make url-safe
+        ID(privateKey.publicKey.x963Representation.base64URLEncodedString())
     }
 }
