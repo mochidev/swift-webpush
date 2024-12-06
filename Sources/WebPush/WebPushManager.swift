@@ -25,7 +25,7 @@ actor WebPushManager: Service, Sendable {
         vapidConfiguration: VAPID.Configuration,
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
         logger: Logger? = nil,
-        eventLoopGroupProvider: NIOEventLoopGroupProvider = .shared(.singletonNIOTSEventLoopGroup)
+        eventLoopGroupProvider: NIOEventLoopGroupProvider = .shared(.singletonMultiThreadedEventLoopGroup)
     ) {
         self.vapidConfiguration = vapidConfiguration
         let allKeys = vapidConfiguration.keys + Array(vapidConfiguration.deprecatedKeys ?? [])
