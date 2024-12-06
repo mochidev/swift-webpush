@@ -1,0 +1,23 @@
+name: API Check
+
+on:
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  API-Check:
+    name: Diagnose API Breaking Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Mark Workspace As Safe
+      # https://github.com/actions/checkout/issues/766
+      run: git config --global --add safe.directory ${GITHUB_WORKSPACE}
+    - name: Diagnose API Breaking Changes
+      run: |
+        swift package diagnose-api-breaking-changes origin/main --products WebPush

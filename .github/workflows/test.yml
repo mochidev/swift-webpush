@@ -1,0 +1,35 @@
+name: Test WebPush
+
+on:
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  Test-Release:
+    name: "Test Release"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v3
+    - name: Build
+      run: |
+        swift build --build-tests --configuration release -Xswiftc -enable-testing -Xswiftc -warnings-as-errors -Xcc -Werror
+    - name: Run Tests
+      run: |
+        swift test --skip-build --configuration release
+
+  Test-Debug:
+    name: "Test Debug"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v3
+    - name: Build
+      run: |
+        swift build --build-tests --configuration debug -Xswiftc -enable-testing -Xswiftc -warnings-as-errors -Xcc -Werror
+    - name: Run Tests
+      run: |
+        swift test --skip-build --configuration debug
