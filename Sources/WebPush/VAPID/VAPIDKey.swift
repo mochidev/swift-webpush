@@ -46,7 +46,7 @@ extension VAPID.Key: Codable {
 }
 
 extension VAPID.Key: Identifiable {
-    public struct ID: Hashable, Comparable, Codable, Sendable {
+    public struct ID: Hashable, Comparable, Codable, Sendable, CustomStringConvertible {
         private var rawValue: String
         
         init(_ rawValue: String) {
@@ -66,9 +66,19 @@ extension VAPID.Key: Identifiable {
             var container = encoder.singleValueContainer()
             try container.encode(self.rawValue)
         }
+        
+        public var description: String {
+            self.rawValue
+        }
     }
     
     public var id: ID {
         ID(privateKey.publicKey.x963Representation.base64URLEncodedString())
+    }
+}
+
+extension VAPID.Key: VAPIDKeyProtocol {
+    func signature(for message: some DataProtocol) throws -> P256.Signing.ECDSASignature {
+        try privateKey.signature(for: SHA256.hash(data: message))
     }
 }
