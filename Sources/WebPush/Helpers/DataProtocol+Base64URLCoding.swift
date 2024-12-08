@@ -9,6 +9,7 @@
 import Foundation
 
 extension DataProtocol {
+    @_disfavoredOverload
     func base64URLEncodedString() -> String {
         Data(self)
             .base64EncodedString()
@@ -18,8 +19,20 @@ extension DataProtocol {
     }
 }
 
+extension ContiguousBytes {
+    func base64URLEncodedString() -> String {
+        withUnsafeBytes { bytes in
+            Data(bytes)
+                .base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: "")
+        }
+    }
+}
+
 extension DataProtocol where Self: RangeReplaceableCollection {
-    init?(base64URLEncoded string: String) {
+    init?(base64URLEncoded string: some StringProtocol) {
         var base64String = string.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
         while base64String.count % 4 != 0 {
             base64String = base64String.appending("=")
