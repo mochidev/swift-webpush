@@ -29,6 +29,16 @@ extension VAPID {
         init(
             origin: String,
             contactInformation: VAPID.Configuration.ContactInformation,
+            expiration: Date
+        ) {
+            self.audience = origin
+            self.subject = contactInformation
+            self.expiration = Int(expiration.timeIntervalSince1970)
+        }
+        
+        init(
+            origin: String,
+            contactInformation: VAPID.Configuration.ContactInformation,
             expiresIn: VAPID.Configuration.Duration
         ) {
             audience = origin

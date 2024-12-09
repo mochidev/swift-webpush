@@ -15,9 +15,9 @@ extension VoluntaryApplicationServerIdentification {
         /// This key should be shared by all instances of your push service, and should be kept secure. Rotating this key is not recommended as you'll lose access to subscribers that registered against it.
         ///
         /// Some implementations will choose to use different keys per subscriber. In that case, choose to provide a set of keys instead.
-        public var primaryKey: Key?
-        public var keys: Set<Key>
-        public var deprecatedKeys: Set<Key>?
+        public private(set) var primaryKey: Key?
+        public private(set) var keys: Set<Key>
+        public private(set) var deprecatedKeys: Set<Key>?
         public var contactInformation: ContactInformation
         public var expirationDuration: Duration
         public var validityDuration: Duration
@@ -82,6 +82,25 @@ extension VoluntaryApplicationServerIdentification {
                 expirationDuration: expirationDuration,
                 validityDuration: validityDuration
             )
+        }
+        
+        mutating func updateKeys(
+            primaryKey: Key?,
+            keys: Set<Key>,
+            deprecatedKeys: Set<Key>? = nil
+        ) throws {
+            self.primaryKey = primaryKey
+            var keys = keys
+            if let primaryKey {
+                keys.insert(primaryKey)
+            }
+            guard !keys.isEmpty
+            else { throw CancellationError() } // TODO: No keys error
+            
+            self.keys = keys
+            var deprecatedKeys = deprecatedKeys ?? []
+            deprecatedKeys.subtract(keys)
+            self.deprecatedKeys = deprecatedKeys.isEmpty ? nil : deprecatedKeys
         }
     }
 }
@@ -175,5 +194,11 @@ extension VAPID.Configuration {
         public static func hours(_ hours: Int) -> Self {
             Self(seconds: hours*60*60)
         }
+    }
+}
+
+extension Date {
+    func adding(_ duration: VAPID.Configuration.Duration) -> Self {
+        addingTimeInterval(TimeInterval(duration.seconds))
     }
 }
