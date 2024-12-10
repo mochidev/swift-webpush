@@ -6,6 +6,7 @@
 //  Copyright © 2024 Mochi Development, Inc. All rights reserved.
 //
 
+@preconcurrency import Crypto
 import Foundation
 
 /// Represents a subscriber registration from the browser.
@@ -31,24 +32,32 @@ public protocol SubscriberProtocol: Sendable {
 /// The set of cryptographic secrets shared by the browser (is. user agent) along with a subscription.
 /// 
 /// - SeeAlso: [RFC8291 Message Encryption for Web Push §2.1. Key and Secret Distribution](https://datatracker.ietf.org/doc/html/rfc8291#section-2.1)
-public struct UserAgentKeyMaterial: Codable, Hashable, Sendable {
-    /// The encoded representation of a subscriber's key material.
-    ///
-    /// - SeeAlso: [Push API Working Draft §8.1. `PushEncryptionKeyName` enumeration](https://www.w3.org/TR/push-api/#pushencryptionkeyname-enumeration)
-    enum CodingKeys: String, CodingKey {
-        case publicKey = "p256dh"
-        case authenticationSecret = "auth"
-    }
+public struct UserAgentKeyMaterial: Sendable {
+    /// The underlying type of an authentication secret.
+    public typealias Salt = Data
     
     /// The public key a shared secret can be derived from for message encryption.
     ///
     /// - SeeAlso: [Push API Working Draft §8.1. `PushEncryptionKeyName` enumeration — `p256dh`](https://www.w3.org/TR/push-api/#dom-pushencryptionkeyname-p256dh)
-    public var publicKey: String
+    public var publicKey: P256.Signing.PublicKey
     
     /// The authentication secret to validate our ability to send a subscriber push messages.
     ///
     /// - SeeAlso: [Push API Working Draft §8.1. `PushEncryptionKeyName` enumeration — `auth`](https://www.w3.org/TR/push-api/#dom-pushencryptionkeyname-auth)
-    public var authenticationSecret: String
+    public var authenticationSecret: Salt
+    
+    /// Initialize key material with a public key and authentication secret from a user agent.
+    ///
+    /// - Parameters:
+    ///   - publicKey: The public key a shared secret can be derived from for message encryption.
+    ///   - authenticationSecret: The authentication secret to validate our ability to send a subscriber push messages.
+    public init(
+        publicKey: P256.Signing.PublicKey,
+        authenticationSecret: Salt
+    ) {
+        self.publicKey = publicKey
+        self.authenticationSecret = authenticationSecret
+    }
     
     /// Initialize key material with a public key and authentication secret from a user agent.
     ///
@@ -58,9 +67,53 @@ public struct UserAgentKeyMaterial: Codable, Hashable, Sendable {
     public init(
         publicKey: String,
         authenticationSecret: String
-    ) {
-        self.publicKey = publicKey
-        self.authenticationSecret = authenticationSecret
+    ) throws {
+        guard let publicKeyData = Data(base64URLEncoded: publicKey)
+        else { throw CancellationError() } // invalid public key error (underlying error = URLDecoding error)
+        do {
+            self.publicKey = try P256.Signing.PublicKey(x963Representation: publicKeyData)
+        } catch { throw CancellationError() }  // invalid public key error (underlying error = error)
+        
+        guard let authenticationSecretData = Data(base64URLEncoded: authenticationSecret)
+        else { throw CancellationError() } // invalid authentication secret error (underlying error = URLDecoding error)
+        
+        self.authenticationSecret = authenticationSecretData
+    }
+}
+
+extension UserAgentKeyMaterial: Hashable {
+    public static func == (lhs: UserAgentKeyMaterial, rhs: UserAgentKeyMaterial) -> Bool {
+        lhs.publicKey.x963Representation == rhs.publicKey.x963Representation
+        && lhs.authenticationSecret == rhs.authenticationSecret
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(publicKey.x963Representation)
+        hasher.combine(authenticationSecret)
+    }
+}
+
+extension UserAgentKeyMaterial: Codable {
+    /// The encoded representation of a subscriber's key material.
+    ///
+    /// - SeeAlso: [Push API Working Draft §8.1. `PushEncryptionKeyName` enumeration](https://www.w3.org/TR/push-api/#pushencryptionkeyname-enumeration)
+    public enum CodingKeys: String, CodingKey {
+        case publicKey = "p256dh"
+        case authenticationSecret = "auth"
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        let publicKeyString = try container.decode(String.self, forKey: .publicKey)
+        let authenticationSecretString = try container.decode(String.self, forKey: .authenticationSecret)
+        try self.init(publicKey: publicKeyString, authenticationSecret: authenticationSecretString)
+    }
+    
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(publicKey.x963Representation.base64URLEncodedString(), forKey: .publicKey)
+        try container.encode(authenticationSecret.base64URLEncodedString(), forKey: .authenticationSecret)
     }
 }
 
@@ -83,7 +136,7 @@ public struct Subscriber: SubscriberProtocol, Codable, Hashable, Sendable {
     ///
     /// - Note: The VAPID Key ID must be manually added to the structure supplied by the spec.
     /// - SeeAlso: [Push API Working Draft §8. `PushSubscription` interface](https://www.w3.org/TR/push-api/#pushsubscription-interface).
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case endpoint = "endpoint"
         case userAgentKeyMaterial = "keys"
         case vapidKeyID = "applicationServerKey"
