@@ -24,7 +24,7 @@ actor WebPushManager: Sendable {
     public static let maximumMessageSize = maximumEncryptedPayloadSize - 103
     
     nonisolated let logger: Logger
-    let httpClient: HTTPClient
+    var httpClient: any HTTPClientProtocol
     
     let vapidKeyLookup: [VAPID.Key.ID : VAPID.Key]
     var vapidAuthorizationCache: [String : (authorization: String, validUntil: Date)] = [:]
@@ -64,6 +64,13 @@ actor WebPushManager: Sendable {
                 backgroundActivityLogger: self.logger
             )
         }
+    }
+    
+    /// Internal method to install a different HTTP Client for mocking.
+    ///
+    /// Note that this must be called before ``run()`` is called or the client's syncShutdown won't be called.
+    func installHTTPClient(_ httpClient: HTTPClientProtocol) {
+        self.httpClient = httpClient
     }
     
     /// Load an up-to-date Authorization header for the specified endpoint and signing key combo.
@@ -255,7 +262,7 @@ extension WebPushManager: Service {
         logger.info("Starting up WebPushManager")
         try await withTaskCancellationOrGracefulShutdownHandler {
             try await gracefulShutdown()
-        } onCancelOrGracefulShutdown: { [self] in
+        } onCancelOrGracefulShutdown: { [logger, httpClient] in
             logger.info("Shutting down WebPushManager")
             do {
                 try httpClient.syncShutdown()
