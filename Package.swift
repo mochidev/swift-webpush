@@ -30,6 +30,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "ServiceLifecycle", package: "swift-service-lifecycle"),
                 .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
             ]
         ),
         .testTarget(name: "WebPushTests", dependencies: [

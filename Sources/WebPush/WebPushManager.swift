@@ -7,13 +7,21 @@
 //
 
 import AsyncHTTPClient
+@preconcurrency import Crypto
 import Foundation
+import NIOHTTP1
 import Logging
 import NIOCore
 import ServiceLifecycle
 
 actor WebPushManager: Sendable {
     public let vapidConfiguration: VAPID.Configuration
+    
+    /// The maximum encrypted payload size guaranteed by the spec.
+    public static let maximumEncryptedPayloadSize = 4096
+    
+    /// The maximum message size allowed.
+    public static let maximumMessageSize = maximumEncryptedPayloadSize - 103
     
     nonisolated let logger: Logger
     let httpClient: HTTPClient
@@ -29,6 +37,8 @@ actor WebPushManager: Sendable {
     ) {
         assert(vapidConfiguration.validityDuration <= vapidConfiguration.expirationDuration, "The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring.");
         assert(vapidConfiguration.expirationDuration <= .hours(24), "The expiration duration must be less than 24 hours or else push endpoints will reject messages sent to them.");
+        precondition(!vapidConfiguration.keys.isEmpty, "VAPID.Configuration must have keys specified.")
+        
         self.vapidConfiguration = vapidConfiguration
         let allKeys = vapidConfiguration.keys + Array(vapidConfiguration.deprecatedKeys ?? [])
         self.vapidKeyLookup = Dictionary(
@@ -56,6 +66,11 @@ actor WebPushManager: Sendable {
         }
     }
     
+    /// Load an up-to-date Authorization header for the specified endpoint and signing key combo.
+    /// - Parameters:
+    ///   - endpoint: The endpoint we'll be contacting to send push messages for a given subscriber.
+    ///   - signingKey: The signing key to sign the authorization token with.
+    /// - Returns: An `Authorization` header string.
     func loadCurrentVAPIDAuthorizationHeader(
         endpoint: URL,
         signingKey: VAPID.Key
@@ -140,6 +155,99 @@ actor WebPushManager: Sendable {
     public nonisolated var nextVAPIDKeyID: VAPID.Key.ID {
         vapidConfiguration.primaryKey?.id ?? vapidConfiguration.keys.randomElement()!.id
     }
+    
+    public func send(
+        data message: some DataProtocol,
+        to subscriber: some SubscriberProtocol,
+        expiration: VAPID.Configuration.Duration = .days(30),
+        urgency: Urgency = .high
+    ) async throws {
+        guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID]
+        else { throw CancellationError() } // throw key not found error
+        
+        /// Prepare authorization, private keys, and payload ahead of time to bail early if they can't be created.
+        let authorization = try loadCurrentVAPIDAuthorizationHeader(endpoint: subscriber.endpoint, signingKey: signingKey)
+        let applicationServerECDHPrivateKey = P256.KeyAgreement.PrivateKey()
+        
+        /// Perform key exchange between the user agent's public key and our private key, deriving a shared secret.
+        let userAgent = subscriber.userAgentKeyMaterial
+        guard let sharedSecret = try? applicationServerECDHPrivateKey.sharedSecretFromKeyAgreement(with: userAgent.publicKey)
+        else { throw CancellationError() } // throw bad subscription
+        
+        /// Generate a 16-byte salt.
+        var salt: [UInt8] = Array(repeating: 0, count: 16)
+        for index in salt.indices { salt[index] = .random(in: .min ... .max) }
+        
+        if message.count > Self.maximumMessageSize {
+            logger.warning("Push message is longer than the maximum guarantee made by the spec: \(Self.maximumMessageSize) bytes. Sending this message may fail, and its size will be leaked despite being encrypted. Please consider sending less data to keep your communications secure.", metadata: ["message": "\(message)"])
+        }
+        
+        /// Prepare the payload by padding it so the final message is 4KB.
+        /// Remove 103 bytes for the theoretical plaintext maximum to achieve this:
+        /// - 16 bytes for the auth tag,
+        /// - 1 for the minimum padding byte (0x02)
+        /// - 86 bytes for the contentCodingHeader:
+        ///     - 16 bytes for the salt
+        ///     - 4 bytes for the record size
+        ///     - 1 byte for the key ID size
+        ///     - 65 bytes for the X9.62/3 representation of the public key
+        ///         - 1 bye for 0x04
+        ///         - 32 bytes for x coordinate
+        ///         - 32 bytes for y coordinate
+        let paddedPayloadSize = max(message.count, Self.maximumMessageSize) // 3993
+        let paddedPayload = message + [0x02] + Array(repeating: 0, count: paddedPayloadSize - message.count)
+        
+        /// Prepare the remaining coding header values:
+        let recordSize = UInt32(paddedPayload.count + 16)
+        let keyID = applicationServerECDHPrivateKey.publicKey.x963Representation
+        let keyIDSize = UInt8(keyID.count)
+        let contentCodingHeader = salt + recordSize.bigEndianBytes + keyIDSize.bigEndianBytes + keyID
+        
+        /// Derive key material (IKM) from the shared secret, salted with the public key pairs and the user agent's authentication salt.
+        let keyInfo = "WebPush: info".utf8Bytes + [0x00] + userAgent.publicKey.x963Representation + applicationServerECDHPrivateKey.publicKey.x963Representation
+        let inputKeyMaterial = sharedSecret.hkdfDerivedSymmetricKey(
+            using: SHA256.self,
+            salt: userAgent.authenticationSecret,
+            sharedInfo: keyInfo,
+            outputByteCount: 32
+        )
+        
+        /// Derive the content encryption key (CEK) for the AES transformation from the above input key material and the local salt.
+        let contentEncryptionKeyInfo = "Content-Encoding: aes128gcm".utf8Bytes + [0x00]
+        let contentEncryptionKey = HKDF<SHA256>.deriveKey(inputKeyMaterial: inputKeyMaterial, salt: salt, info: contentEncryptionKeyInfo, outputByteCount: 16)
+        
+        /// Similarly, derive a nonce using a different rotation of the same key material and salt. Note that we need to transform from a Symmetric key to a nonce
+        let nonceInfo = "Content-Encoding: nonce".utf8Bytes + [0x00]
+        let nonce = try HKDF<SHA256>.deriveKey(inputKeyMaterial: inputKeyMaterial, salt: salt, info: nonceInfo, outputByteCount: 12)
+            .withUnsafeBytes(AES.GCM.Nonce.init(data:))
+        
+        /// Encrypt the padded payload into a single record https://datatracker.ietf.org/doc/html/rfc8188
+        let encryptedRecord = try AES.GCM.seal(paddedPayload, using: contentEncryptionKey, nonce: nonce)
+        
+        /// Attach the header with our public key and salt, along with the authentication tag.
+        let requestContent = contentCodingHeader + encryptedRecord.ciphertext + encryptedRecord.tag
+        
+        /// Add the VAPID authorization and corrent content encoding and type.
+        var request = HTTPClientRequest(url: subscriber.endpoint.absoluteURL.absoluteString)
+        request.method = .POST
+        request.headers.add(name: "Authorization", value: authorization)
+        request.headers.add(name: "Content-Encoding", value: "aes128gcm")
+        request.headers.add(name: "Content-Type", value: "application/octet-stream")
+        request.headers.add(name: "TTL", value: "\(expiration.seconds)")
+        request.headers.add(name: "Urgency", value: "\(urgency)")
+        request.body = .bytes(ByteBuffer(bytes: requestContent))
+        
+        /// Send the request to the push endpoint.
+        let response = try await httpClient.execute(request, deadline: .now(), logger: logger)
+        
+        /// Check the response and determine if the subscription should be removed from our records, or if the notification should just be skipped.
+        switch response.status {
+        case .created: break
+        case .notFound, .gone: throw CancellationError() // throw bad subscription
+        default: throw CancellationError() //Abort(response.status, headers: response.headers, reason: response.description)
+        }
+        logger.trace("Sent \(message) notification to \(subscriber): \(response)")
+    }
 }
 
 extension WebPushManager: Service {
@@ -157,5 +265,44 @@ extension WebPushManager: Service {
                 ])
             }
         }
+    }
+}
+
+public struct Urgency: Hashable, Comparable, Sendable, CustomStringConvertible {
+    let rawValue: String
+    
+    public static let veryLow = Self(rawValue: "very-low")
+    public static let low = Self(rawValue: "low")
+    public static let normal = Self(rawValue: "normal")
+    public static let high = Self(rawValue: "high")
+    
+    @usableFromInline
+    var comparableValue: Int {
+        switch self {
+        case .high:     4
+        case .normal:   3
+        case .low:      2
+        case .veryLow:  1
+        default:        0
+        }
+    }
+    
+    @inlinable
+    public static func < (lhs: Self, rhs: Self) -> Bool {
+        lhs.comparableValue < rhs.comparableValue
+    }
+    
+    public var description: String { rawValue }
+}
+
+extension Urgency: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        self.rawValue = try container.decode(String.self)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }

@@ -194,6 +194,10 @@ extension VAPID.Configuration {
         public static func hours(_ hours: Int) -> Self {
             Self(seconds: hours*60*60)
         }
+        
+        public static func days(_ days: Int) -> Self {
+            Self(seconds: days*24*60*60)
+        }
     }
 }
 
