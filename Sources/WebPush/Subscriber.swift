@@ -39,7 +39,7 @@ public struct UserAgentKeyMaterial: Sendable {
     /// The public key a shared secret can be derived from for message encryption.
     ///
     /// - SeeAlso: [Push API Working Draft §8.1. `PushEncryptionKeyName` enumeration — `p256dh`](https://www.w3.org/TR/push-api/#dom-pushencryptionkeyname-p256dh)
-    public var publicKey: P256.Signing.PublicKey
+    public var publicKey: P256.KeyAgreement.PublicKey
     
     /// The authentication secret to validate our ability to send a subscriber push messages.
     ///
@@ -52,7 +52,7 @@ public struct UserAgentKeyMaterial: Sendable {
     ///   - publicKey: The public key a shared secret can be derived from for message encryption.
     ///   - authenticationSecret: The authentication secret to validate our ability to send a subscriber push messages.
     public init(
-        publicKey: P256.Signing.PublicKey,
+        publicKey: P256.KeyAgreement.PublicKey,
         authenticationSecret: Salt
     ) {
         self.publicKey = publicKey
@@ -71,7 +71,7 @@ public struct UserAgentKeyMaterial: Sendable {
         guard let publicKeyData = Data(base64URLEncoded: publicKey)
         else { throw CancellationError() } // invalid public key error (underlying error = URLDecoding error)
         do {
-            self.publicKey = try P256.Signing.PublicKey(x963Representation: publicKeyData)
+            self.publicKey = try P256.KeyAgreement.PublicKey(x963Representation: publicKeyData)
         } catch { throw CancellationError() }  // invalid public key error (underlying error = error)
         
         guard let authenticationSecretData = Data(base64URLEncoded: authenticationSecret)
