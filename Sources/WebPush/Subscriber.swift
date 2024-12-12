@@ -178,6 +178,15 @@ public struct Subscriber: SubscriberProtocol, Codable, Hashable, Sendable {
         self.userAgentKeyMaterial = userAgentKeyMaterial
         self.vapidKeyID = vapidKeyID
     }
+    
+    /// Cast an object that conforms to ``SubscriberProtocol`` to a ``Subscriber``.
+    public init(_ subscriber: some SubscriberProtocol) {
+        self.init(
+            endpoint: subscriber.endpoint,
+            userAgentKeyMaterial: subscriber.userAgentKeyMaterial,
+            vapidKeyID: subscriber.vapidKeyID
+        )
+    }
 }
 
 extension Subscriber: Identifiable {

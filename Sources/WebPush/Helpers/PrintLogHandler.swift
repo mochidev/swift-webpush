@@ -9,13 +9,13 @@
 import Foundation
 import Logging
 
-struct PrintLogHandler: LogHandler {
+package struct PrintLogHandler: LogHandler {
     private let label: String
 
-    var logLevel: Logger.Level = .info
-    var metadataProvider: Logger.MetadataProvider?
+    package var logLevel: Logger.Level = .info
+    package var metadataProvider: Logger.MetadataProvider?
     
-    init(
+    package init(
         label: String,
         logLevel: Logger.Level = .info,
         metadataProvider: Logger.MetadataProvider? = nil
@@ -26,13 +26,13 @@ struct PrintLogHandler: LogHandler {
     }
 
     private var prettyMetadata: String?
-    var metadata = Logger.Metadata() {
+    package var metadata = Logger.Metadata() {
         didSet {
             self.prettyMetadata = self.prettify(self.metadata)
         }
     }
 
-    subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
+    package subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
         get {
             self.metadata[metadataKey]
         }
@@ -41,7 +41,7 @@ struct PrintLogHandler: LogHandler {
         }
     }
 
-    func log(
+    package func log(
         level: Logger.Level,
         message: Logger.Message,
         metadata explicitMetadata: Logger.Metadata?,
@@ -66,7 +66,7 @@ struct PrintLogHandler: LogHandler {
         print("\(self.timestamp()) [\(level)] \(self.label):\(prettyMetadata.map { " \($0)" } ?? "") [\(source)] \(message)")
     }
 
-    internal static func prepareMetadata(
+    private static func prepareMetadata(
         base: Logger.Metadata,
         provider: Logger.MetadataProvider?,
         explicit: Logger.Metadata?
