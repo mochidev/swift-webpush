@@ -7,8 +7,8 @@
     <a href="https://swiftpackageindex.com/mochidev/swift-webpush">
         <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fmochidev%2Fswift-webpush%2Fbadge%3Ftype%3Dplatforms" />
     </a>
-    <a href="https://github.com/mochidev/WebPush/actions?query=workflow%3A%22Test+WebPush%22">
-        <img src="https://github.com/mochidev/WebPush/workflows/Test%20WebPush/badge.svg" alt="Test Status" />
+    <a href="https://github.com/mochidev/swift-webpush/actions?query=workflow%3A%22Test+WebPush%22">
+        <img src="https://github.com/mochidev/swift-webpush/workflows/Test%20WebPush/badge.svg" alt="Test Status" />
     </a>
 </p>
 
@@ -29,7 +29,7 @@ Please check the [releases](https://github.com/mochidev/WebPush/releases) for re
 dependencies: [
     .package(
         url: "https://github.com/mochidev/WebPush.git", 
-        .upToNextMinor(from: "0.0.1")
+        .upToNextMinor(from: "0.1.1")
     ),
 ],
 ...
