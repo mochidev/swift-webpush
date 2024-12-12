@@ -12,9 +12,10 @@ import Foundation
 import NIOHTTP1
 import Logging
 import NIOCore
+import NIOPosix
 import ServiceLifecycle
 
-actor WebPushManager: Sendable {
+public actor WebPushManager: Sendable {
     public let vapidConfiguration: VAPID.Configuration
     
     /// The maximum encrypted payload size guaranteed by the spec.
