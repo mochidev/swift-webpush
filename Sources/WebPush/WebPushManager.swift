@@ -371,7 +371,7 @@ public actor WebPushManager: Sendable {
         request.body = .bytes(ByteBuffer(bytes: requestContent))
         
         /// Send the request to the push endpoint.
-        let response = try await httpClient.execute(request, deadline: .now(), logger: logger)
+        let response = try await httpClient.execute(request, deadline: .now() + .seconds(2), logger: logger)
         
         /// Check the response and determine if the subscription should be removed from our records, or if the notification should just be skipped.
         switch response.status {
