@@ -1,11 +1,11 @@
 # WebPush
 
 <p align="center">
-    <a href="https://swiftpackageindex.com/mochidev/WebPush">
-        <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fmochidev%2FWebPush%2Fbadge%3Ftype%3Dswift-versions" />
+    <a href="https://swiftpackageindex.com/mochidev/swift-webpush">
+        <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fmochidev%2Fswift-webpush%2Fbadge%3Ftype%3Dswift-versions" />
     </a>
-    <a href="https://swiftpackageindex.com/mochidev/WebPush">
-        <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fmochidev%2FWebPush%2Fbadge%3Ftype%3Dplatforms" />
+    <a href="https://swiftpackageindex.com/mochidev/swift-webpush">
+        <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fmochidev%2Fswift-webpush%2Fbadge%3Ftype%3Dplatforms" />
     </a>
     <a href="https://github.com/mochidev/WebPush/actions?query=workflow%3A%22Test+WebPush%22">
         <img src="https://github.com/mochidev/WebPush/workflows/Test%20WebPush/badge.svg" alt="Test Status" />
@@ -40,6 +40,9 @@ targets: [
             "WebPush",
         ]
     )
+    .testTarget(name: "MyPackageTests", dependencies: [
+        "WebPushTesting",
+    ]
 ]
 ```
 

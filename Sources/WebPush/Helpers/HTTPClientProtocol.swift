@@ -10,7 +10,7 @@ import AsyncHTTPClient
 import Logging
 import NIOCore
 
-protocol HTTPClientProtocol: Sendable {
+package protocol HTTPClientProtocol: Sendable {
     func execute(
         _ request: HTTPClientRequest,
         deadline: NIODeadline,

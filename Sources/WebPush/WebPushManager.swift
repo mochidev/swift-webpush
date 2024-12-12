@@ -25,7 +25,7 @@ public actor WebPushManager: Sendable {
     public static let maximumMessageSize = maximumEncryptedPayloadSize - 103
     
     nonisolated let logger: Logger
-    var httpClient: any HTTPClientProtocol
+    var executor: Executor
     
     let vapidKeyLookup: [VAPID.Key.ID : VAPID.Key]
     var vapidAuthorizationCache: [String : (authorization: String, validUntil: Date)] = [:]
@@ -35,6 +35,41 @@ public actor WebPushManager: Sendable {
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
         logger: Logger? = nil,
         eventLoopGroupProvider: NIOEventLoopGroupProvider = .shared(.singletonMultiThreadedEventLoopGroup)
+    ) {
+        let logger = Logger(label: "WebPushManager", factory: { logger?.handler ?? PrintLogHandler(label: $0, metadataProvider: $1) })
+        
+        var httpClientConfiguration = HTTPClient.Configuration()
+        httpClientConfiguration.httpVersion = .automatic
+        
+        let executor: Executor = switch eventLoopGroupProvider {
+        case .shared(let eventLoopGroup):
+            .httpClient(HTTPClient(
+                eventLoopGroupProvider: .shared(eventLoopGroup),
+                configuration: httpClientConfiguration,
+                backgroundActivityLogger: logger
+            ))
+        case .createNew:
+            .httpClient(HTTPClient(
+                configuration: httpClientConfiguration,
+                backgroundActivityLogger: logger
+            ))
+        }
+        
+        self.init(
+            vapidConfiguration: vapidConfiguration,
+            logger: logger,
+            executor: executor
+        )
+    }
+    
+    /// Internal method to install a different executor for mocking.
+    ///
+    /// Note that this must be called before ``run()`` is called or the client's syncShutdown won't be called.
+    package init(
+        vapidConfiguration: VAPID.Configuration,
+        // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
+        logger: Logger,
+        executor: Executor
     ) {
         assert(vapidConfiguration.validityDuration <= vapidConfiguration.expirationDuration, "The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring.");
         assert(vapidConfiguration.expirationDuration <= .hours(24), "The expiration duration must be less than 24 hours or else push endpoints will reject messages sent to them.");
@@ -46,32 +81,8 @@ public actor WebPushManager: Sendable {
             allKeys.map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        
-        self.logger = Logger(label: "WebPushManager", factory: { logger?.handler ?? PrintLogHandler(label: $0, metadataProvider: $1) })
-        
-        var httpClientConfiguration = HTTPClient.Configuration()
-        httpClientConfiguration.httpVersion = .automatic
-        
-        switch eventLoopGroupProvider {
-        case .shared(let eventLoopGroup):
-            self.httpClient = HTTPClient(
-                eventLoopGroupProvider: .shared(eventLoopGroup),
-                configuration: httpClientConfiguration,
-                backgroundActivityLogger: self.logger
-            )
-        case .createNew:
-            self.httpClient = HTTPClient(
-                configuration: httpClientConfiguration,
-                backgroundActivityLogger: self.logger
-            )
-        }
-    }
-    
-    /// Internal method to install a different HTTP Client for mocking.
-    ///
-    /// Note that this must be called before ``run()`` is called or the client's syncShutdown won't be called.
-    func installHTTPClient(_ httpClient: HTTPClientProtocol) {
-        self.httpClient = httpClient
+        self.logger = logger
+        self.executor = executor
     }
     
     /// Load an up-to-date Authorization header for the specified endpoint and signing key combo.
@@ -164,11 +175,125 @@ public actor WebPushManager: Sendable {
         vapidConfiguration.primaryKey?.id ?? vapidConfiguration.keys.randomElement()!.id
     }
     
+    /// Send a push message as raw data.
+    ///
+    /// The service worker you registered is expected to know how to decode the data you send.
+    ///
+    /// - Parameters:
+    ///   - message: The message to send as raw data.
+    ///   - subscriber: The subscriber to send the push message to.
+    ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
+    ///   - urgency: The urgency of the delivery of the push message.
     public func send(
         data message: some DataProtocol,
         to subscriber: some SubscriberProtocol,
         expiration: VAPID.Configuration.Duration = .days(30),
         urgency: Urgency = .high
+    ) async throws {
+        switch executor {
+        case .httpClient(let httpClient):
+            try await execute(
+                httpClient: httpClient,
+                data: message,
+                subscriber: subscriber,
+                expiration: expiration,
+                urgency: urgency
+            )
+        case .handler(let handler):
+            try await handler(.data(Data(message)), Subscriber(subscriber), expiration, urgency)
+        }
+    }
+    
+    /// Send a push message as a string.
+    ///
+    /// The service worker you registered is expected to know how to decode the string you send.
+    ///
+    /// - Parameters:
+    ///   - message: The message to send as a string.
+    ///   - subscriber: The subscriber to send the push message to.
+    ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
+    ///   - urgency: The urgency of the delivery of the push message.
+    public func send(
+        string message: some StringProtocol,
+        to subscriber: some SubscriberProtocol,
+        expiration: VAPID.Configuration.Duration = .days(30),
+        urgency: Urgency = .high
+    ) async throws {
+        try await routeMessage(
+            message: .string(String(message)),
+            to: subscriber,
+            expiration: expiration,
+            urgency: urgency
+        )
+    }
+    
+    /// Send a push message as encoded JSON.
+    ///
+    /// The service worker you registered is expected to know how to decode the JSON you send. Note that dates are encoded using ``/Foundation/JSONEncoder/DateEncodingStrategy/millisecondsSince1970``, and data is encoded using ``/Foundation/JSONEncoder/DataEncodingStrategy/base64``.
+    ///
+    /// - Parameters:
+    ///   - message: The message to send as JSON.
+    ///   - subscriber: The subscriber to send the push message to.
+    ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
+    ///   - urgency: The urgency of the delivery of the push message.
+    public func send(
+        json message: some Encodable&Sendable,
+        to subscriber: some SubscriberProtocol,
+        expiration: VAPID.Configuration.Duration = .days(30),
+        urgency: Urgency = .high
+    ) async throws {
+        try await routeMessage(
+            message: .json(message),
+            to: subscriber,
+            expiration: expiration,
+            urgency: urgency
+        )
+    }
+    
+    /// Route a message to the current executor.
+    /// - Parameters:
+    ///   - message: The message to send.
+    ///   - subscriber: The subscriber to sign the message against.
+    ///   - expiration: The expiration of the message.
+    ///   - urgency: The urgency of the message.
+    func routeMessage(
+        message: _Message,
+        to subscriber: some SubscriberProtocol,
+        expiration: VAPID.Configuration.Duration,
+        urgency: Urgency
+    ) async throws {
+        switch executor {
+        case .httpClient(let httpClient):
+            try await execute(
+                httpClient: httpClient,
+                data: message.data,
+                subscriber: subscriber,
+                expiration: expiration,
+                urgency: urgency
+            )
+        case .handler(let handler):
+            try await handler(
+                message,
+                Subscriber(subscriber),
+                expiration,
+                urgency
+            )
+        }
+    }
+    
+    /// Send a message via HTTP Client, mocked or otherwise, encrypting it on the way.
+    /// - Parameters:
+    ///   - httpClient: The protocol implementing HTTP-like functionality.
+    ///   - message: The message to send as raw data.
+    ///   - subscriber: The subscriber to sign the message against.
+    ///   - expiration: The expiration of the message.
+    ///   - urgency: The urgency of the message.
+    func execute(
+        httpClient: some HTTPClientProtocol,
+        data message: some DataProtocol,
+        subscriber: some SubscriberProtocol,
+        expiration: VAPID.Configuration.Duration,
+        urgency: Urgency
     ) async throws {
         guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID]
         else { throw CancellationError() } // throw key not found error
@@ -263,10 +388,12 @@ extension WebPushManager: Service {
         logger.info("Starting up WebPushManager")
         try await withTaskCancellationOrGracefulShutdownHandler {
             try await gracefulShutdown()
-        } onCancelOrGracefulShutdown: { [logger, httpClient] in
+        } onCancelOrGracefulShutdown: { [logger, executor] in
             logger.info("Shutting down WebPushManager")
             do {
-                try httpClient.syncShutdown()
+                if case let .httpClient(httpClient) = executor {
+                    try httpClient.syncShutdown()
+                }
             } catch {
                 logger.error("Graceful Shutdown Failed", metadata: [
                     "error": "\(error)"
@@ -276,34 +403,38 @@ extension WebPushManager: Service {
     }
 }
 
-public struct Urgency: Hashable, Comparable, Sendable, CustomStringConvertible {
-    let rawValue: String
-    
-    public static let veryLow = Self(rawValue: "very-low")
-    public static let low = Self(rawValue: "low")
-    public static let normal = Self(rawValue: "normal")
-    public static let high = Self(rawValue: "high")
-    
-    @usableFromInline
-    var comparableValue: Int {
-        switch self {
-        case .high:     4
-        case .normal:   3
-        case .low:      2
-        case .veryLow:  1
-        default:        0
+// MARK: - Public Types
+
+extension WebPushManager {
+    public struct Urgency: Hashable, Comparable, Sendable, CustomStringConvertible {
+        let rawValue: String
+        
+        public static let veryLow = Self(rawValue: "very-low")
+        public static let low = Self(rawValue: "low")
+        public static let normal = Self(rawValue: "normal")
+        public static let high = Self(rawValue: "high")
+        
+        @usableFromInline
+        var comparableValue: Int {
+            switch self {
+            case .high:     4
+            case .normal:   3
+            case .low:      2
+            case .veryLow:  1
+            default:        0
+            }
         }
+        
+        @inlinable
+        public static func < (lhs: Self, rhs: Self) -> Bool {
+            lhs.comparableValue < rhs.comparableValue
+        }
+        
+        public var description: String { rawValue }
     }
-    
-    @inlinable
-    public static func < (lhs: Self, rhs: Self) -> Bool {
-        lhs.comparableValue < rhs.comparableValue
-    }
-    
-    public var description: String { rawValue }
 }
 
-extension Urgency: Codable {
+extension WebPushManager.Urgency: Codable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         self.rawValue = try container.decode(String.self)
@@ -312,5 +443,41 @@ extension Urgency: Codable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
+    }
+}
+
+// MARK: - Package Types
+
+extension WebPushManager {
+    public enum _Message: Sendable {
+        case data(Data)
+        case string(String)
+        case json(any Encodable&Sendable)
+        
+        var data: Data {
+            get throws {
+                switch self {
+                case .data(let data):
+                    return data
+                case .string(let string):
+                    var string = string
+                    return string.withUTF8 { Data($0) }
+                case .json(let json):
+                    let encoder = JSONEncoder()
+                    encoder.dateEncodingStrategy = .millisecondsSince1970
+                    return try encoder.encode(json)
+                }
+            }
+        }
+    }
+    
+    package enum Executor: Sendable {
+        case httpClient(any HTTPClientProtocol)
+        case handler(@Sendable (
+            _ message: _Message,
+            _ subscriber: Subscriber,
+            _ expiration: VAPID.Configuration.Duration,
+            _ urgency: Urgency
+        ) async throws -> Void)
     }
 }

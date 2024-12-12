@@ -13,6 +13,7 @@ let package = Package(
     ],
     products: [
         .library(name: "WebPush", targets: ["WebPush"]),
+        .library(name: "WebPushTesting", targets: ["WebPush", "WebPushTesting"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-crypto.git", "3.10.0"..<"5.0.0"),
@@ -33,12 +34,21 @@ let package = Package(
                 .product(name: "NIOHTTP1", package: "swift-nio"),
             ]
         ),
+        .target(
+            name: "WebPushTesting",
+            dependencies: [
+                .product(name: "Crypto", package: "swift-crypto"),
+                .product(name: "Logging", package: "swift-log"),
+                .target(name: "WebPush"),
+            ]
+        ),
         .testTarget(name: "WebPushTests", dependencies: [
             .product(name: "AsyncHTTPClient", package: "async-http-client"),
             .product(name: "Logging", package: "swift-log"),
             .product(name: "NIOCore", package: "swift-nio"),
             .product(name: "ServiceLifecycle", package: "swift-service-lifecycle"),
             .target(name: "WebPush"),
+            .target(name: "WebPushTesting"),
         ]),
     ]
 )
