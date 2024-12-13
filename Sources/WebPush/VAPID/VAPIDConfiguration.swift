@@ -46,14 +46,14 @@ extension VoluntaryApplicationServerIdentification {
             contactInformation: ContactInformation,
             expirationDuration: Duration = .hours(22),
             validityDuration: Duration = .hours(20)
-        ) throws {
+        ) throws(ConfigurationError) {
             self.primaryKey = primaryKey
             var keys = keys
             if let primaryKey {
                 keys.insert(primaryKey)
             }
             guard !keys.isEmpty
-            else { throw CancellationError() } // TODO: No keys error
+            else { throw .keysNotProvided }
             
             self.keys = keys
             var deprecatedKeys = deprecatedKeys ?? []
@@ -88,14 +88,14 @@ extension VoluntaryApplicationServerIdentification {
             primaryKey: Key?,
             keys: Set<Key>,
             deprecatedKeys: Set<Key>? = nil
-        ) throws {
+        ) throws(ConfigurationError) {
             self.primaryKey = primaryKey
             var keys = keys
             if let primaryKey {
                 keys.insert(primaryKey)
             }
             guard !keys.isEmpty
-            else { throw CancellationError() } // TODO: No keys error
+            else { throw .keysNotProvided }
             
             self.keys = keys
             var deprecatedKeys = deprecatedKeys ?? []
