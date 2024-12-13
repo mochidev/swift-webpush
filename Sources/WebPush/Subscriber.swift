@@ -67,15 +67,15 @@ public struct UserAgentKeyMaterial: Sendable {
     public init(
         publicKey: String,
         authenticationSecret: String
-    ) throws {
+    ) throws(UserAgentKeyMaterialError) {
         guard let publicKeyData = Data(base64URLEncoded: publicKey)
-        else { throw CancellationError() } // invalid public key error (underlying error = URLDecoding error)
+        else { throw .invalidPublicKey(underlyingError: Base64URLDecodingError()) }
         do {
             self.publicKey = try P256.KeyAgreement.PublicKey(x963Representation: publicKeyData)
-        } catch { throw CancellationError() }  // invalid public key error (underlying error = error)
+        } catch { throw .invalidPublicKey(underlyingError: error) }
         
         guard let authenticationSecretData = Data(base64URLEncoded: authenticationSecret)
-        else { throw CancellationError() } // invalid authentication secret error (underlying error = URLDecoding error)
+        else { throw .invalidAuthenticationSecret(underlyingError: Base64URLDecodingError()) }
         
         self.authenticationSecret = authenticationSecretData
     }
@@ -190,5 +190,6 @@ public struct Subscriber: SubscriberProtocol, Codable, Hashable, Sendable {
 }
 
 extension Subscriber: Identifiable {
+    /// A safe identifier to use for the subscriber without exposing key material.
     public var id: String { endpoint.absoluteString }
 }
