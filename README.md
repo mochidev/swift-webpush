@@ -1,4 +1,4 @@
-# WebPush
+# Swift WebPush
 
 <p align="center">
     <a href="https://swiftpackageindex.com/mochidev/swift-webpush">
@@ -16,19 +16,19 @@ A server-side Swift implementation of the WebPush standard.
 
 ## Quick Links
 
-- [Documentation](https://swiftpackageindex.com/mochidev/swift-WebPush/documentation)
+- [Documentation](https://swiftpackageindex.com/mochidev/swift-webpush/documentation)
 - [Updates on Mastodon](https://mastodon.social/tags/SwiftWebPush)
 
 ## Installation
 
 Add `WebPush` as a dependency in your `Package.swift` file to start using it. Then, add `import WebPush` to any file you wish to use the library in.
 
-Please check the [releases](https://github.com/mochidev/WebPush/releases) for recommended versions.
+Please check the [releases](https://github.com/mochidev/swift-webpush/releases) for recommended versions.
 
 ```swift
 dependencies: [
     .package(
-        url: "https://github.com/mochidev/WebPush.git", 
+        url: "https://github.com/mochidev/swift-webPush.git", 
         .upToNextMinor(from: "0.1.1")
     ),
 ],
@@ -39,10 +39,13 @@ targets: [
         dependencies: [
             "WebPush",
         ]
-    )
-    .testTarget(name: "MyPackageTests", dependencies: [
-        "WebPushTesting",
-    ]
+    ),
+    .testTarget(
+        name: "MyPackageTests",
+        dependencies: [
+            "WebPushTesting",
+        ]
+    ),
 ]
 ```
 
