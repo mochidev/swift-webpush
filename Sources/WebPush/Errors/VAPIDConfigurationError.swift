@@ -13,6 +13,7 @@ extension VAPID {
     public struct ConfigurationError: LocalizedError, Hashable {
         enum Kind {
             case keysNotProvided
+            case matchingKeyNotFound
         }
         
         var kind: Kind
@@ -20,10 +21,15 @@ extension VAPID {
         /// VAPID keys not found during initialization.
         public static let keysNotProvided = Self(kind: .keysNotProvided)
         
+        /// A VAPID key for the subscriber was not found.
+        public static let matchingKeyNotFound = Self(kind: .matchingKeyNotFound)
+        
         public var errorDescription: String? {
             switch kind {
             case .keysNotProvided:
                 "VAPID keys not found during initialization."
+            case .matchingKeyNotFound:
+                "A VAPID key for the subscriber was not found."
             }
         }
     }
