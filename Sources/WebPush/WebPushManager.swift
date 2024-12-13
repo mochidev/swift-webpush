@@ -296,7 +296,12 @@ public actor WebPushManager: Sendable {
         urgency: Urgency
     ) async throws {
         guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID]
-        else { throw CancellationError() } // throw key not found error
+        else {
+            logger.warning("A key was not found for this subscriber.", metadata: [
+                "vapidKeyID": "\(subscriber.vapidKeyID)"
+            ])
+            throw VAPID.ConfigurationError.matchingKeyNotFound
+        }
         
         /// Prepare authorization, private keys, and payload ahead of time to bail early if they can't be created.
         let authorization = try loadCurrentVAPIDAuthorizationHeader(endpoint: subscriber.endpoint, signingKey: signingKey)
@@ -305,7 +310,7 @@ public actor WebPushManager: Sendable {
         /// Perform key exchange between the user agent's public key and our private key, deriving a shared secret.
         let userAgent = subscriber.userAgentKeyMaterial
         guard let sharedSecret = try? applicationServerECDHPrivateKey.sharedSecretFromKeyAgreement(with: userAgent.publicKey)
-        else { throw CancellationError() } // throw bad subscription
+        else { throw BadSubscriberError() }
         
         /// Generate a 16-byte salt.
         var salt: [UInt8] = Array(repeating: 0, count: 16)
@@ -376,8 +381,10 @@ public actor WebPushManager: Sendable {
         /// Check the response and determine if the subscription should be removed from our records, or if the notification should just be skipped.
         switch response.status {
         case .created: break
-        case .notFound, .gone: throw CancellationError() // throw bad subscription
-        default: throw CancellationError() //Abort(response.status, headers: response.headers, reason: response.description)
+        case .notFound, .gone: throw BadSubscriberError()
+        // TODO: 413 payload too large - warn and throw error
+        // TODO: 429 too many requests, 500 internal server error, 503 server shutting down - check config and perform a retry after a delay?
+        default: throw HTTPError(response: response)
         }
         logger.trace("Sent \(message) notification to \(subscriber): \(response)")
     }
