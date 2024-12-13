@@ -16,7 +16,7 @@ A server-side Swift implementation of the WebPush standard.
 
 ## Quick Links
 
-- [Documentation](https://swiftpackageindex.com/mochidev/WebPush/documentation)
+- [Documentation](https://swiftpackageindex.com/mochidev/swift-WebPush/documentation)
 - [Updates on Mastodon](https://mastodon.social/tags/SwiftWebPush)
 
 ## Installation
