@@ -9,7 +9,7 @@
 import Foundation
 
 extension VoluntaryApplicationServerIdentification {
-    public struct Configuration: Hashable, Codable, Sendable {
+    public struct Configuration: Hashable, Sendable {
         /// The VAPID key that identifies the push service to subscribers.
         ///
         /// This key should be shared by all instances of your push service, and should be kept secure. Rotating this key is not recommended as you'll lose access to subscribers that registered against it.
@@ -64,26 +64,6 @@ extension VoluntaryApplicationServerIdentification {
             self.validityDuration = validityDuration
         }
         
-        public init(from decoder: any Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            
-            let primaryKey = try container.decodeIfPresent(Key.self, forKey: CodingKeys.primaryKey)
-            let keys = try container.decode(Set<Key>.self, forKey: CodingKeys.keys)
-            let deprecatedKeys = try container.decodeIfPresent(Set<Key>.self, forKey: CodingKeys.deprecatedKeys)
-            let contactInformation = try container.decode(ContactInformation.self, forKey: CodingKeys.contactInformation)
-            let expirationDuration = try container.decode(Duration.self, forKey: CodingKeys.expirationDuration)
-            let validityDuration = try container.decode(Duration.self, forKey: CodingKeys.validityDuration)
-            
-            try self.init(
-                primaryKey: primaryKey,
-                keys: keys,
-                deprecatedKeys: deprecatedKeys,
-                contactInformation: contactInformation,
-                expirationDuration: expirationDuration,
-                validityDuration: validityDuration
-            )
-        }
-        
         mutating func updateKeys(
             primaryKey: Key?,
             keys: Set<Key>,
@@ -102,6 +82,57 @@ extension VoluntaryApplicationServerIdentification {
             deprecatedKeys.subtract(keys)
             self.deprecatedKeys = deprecatedKeys.isEmpty ? nil : deprecatedKeys
         }
+    }
+}
+
+extension VAPID.Configuration: Codable {
+    public enum CodingKeys: CodingKey {
+        case primaryKey
+        case keys
+        case deprecatedKeys
+        case contactInformation
+        case expirationDuration
+        case validityDuration
+    }
+    
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        let primaryKey = try container.decodeIfPresent(VAPID.Key.self, forKey: CodingKeys.primaryKey)
+        let keys = try container.decodeIfPresent(Set<VAPID.Key>.self, forKey: CodingKeys.keys) ?? []
+        let deprecatedKeys = try container.decodeIfPresent(Set<VAPID.Key>.self, forKey: CodingKeys.deprecatedKeys)
+        let contactInformation = try container.decode(ContactInformation.self, forKey: CodingKeys.contactInformation)
+        let expirationDuration = try container.decode(Duration.self, forKey: CodingKeys.expirationDuration)
+        let validityDuration = try container.decode(Duration.self, forKey: CodingKeys.validityDuration)
+        
+        try self.init(
+            primaryKey: primaryKey,
+            keys: keys,
+            deprecatedKeys: deprecatedKeys,
+            contactInformation: contactInformation,
+            expirationDuration: expirationDuration,
+            validityDuration: validityDuration
+        )
+    }
+    
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        /// Remove the primary key from the list so it's not listed twice
+        var keys: Set<VAPID.Key>? = self.keys
+        if let primaryKey {
+            keys?.remove(primaryKey)
+        }
+        if keys?.isEmpty == true {
+            keys = nil
+        }
+        
+        try container.encodeIfPresent(primaryKey, forKey: .primaryKey)
+        try container.encodeIfPresent(keys, forKey: .keys)
+        try container.encodeIfPresent(deprecatedKeys, forKey: .deprecatedKeys)
+        try container.encode(contactInformation, forKey: .contactInformation)
+        try container.encode(expirationDuration, forKey: .expirationDuration)
+        try container.encode(validityDuration, forKey: .validityDuration)
     }
 }
 

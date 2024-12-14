@@ -111,12 +111,12 @@ To uninstall the generator:
 Once installed, a new configuration can be generated as needed:
 ```
 % ~/.swiftpm/bin/vapid-key-generator https://example.com
-VAPID.Configuration: {"contactInformation":"https://example.com","expirationDuration":79200,"keys":["g7PXKzeMR/B+ndQWa92Dl9u22CibXJnm6vN9L6Gri1E="],"primaryKey":"g7PXKzeMR/B+ndQWa92Dl9u22CibXJnm6vN9L6Gri1E=","validityDuration":72000}
+VAPID.Configuration: {"contactInformation":"https://example.com","expirationDuration":79200,"primaryKey":"6PSSAJiMj7uOvtE4ymNo5GWcZbT226c5KlV6c+8fx5g=","validityDuration":72000}
 
 
 Example Usage:
     // TODO: Load this data from .env or from file system
-    let configurationData = Data(#" {"contactInformation":"https://example.com","expirationDuration":79200,"keys":["g7PXKzeMR/B+ndQWa92Dl9u22CibXJnm6vN9L6Gri1E="],"primaryKey":"g7PXKzeMR/B+ndQWa92Dl9u22CibXJnm6vN9L6Gri1E=","validityDuration":72000} "#.utf8)
+    let configurationData = Data(#" {"contactInformation":"https://example.com","expirationDuration":79200,"primaryKey":"6PSSAJiMj7uOvtE4ymNo5GWcZbT226c5KlV6c+8fx5g=","validityDuration":72000} "#.utf8)
     let vapidConfiguration = try JSONDecoder().decode(VAPID.Configuration.self, from: configurationData)
 ```
 
