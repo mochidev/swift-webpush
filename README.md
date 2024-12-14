@@ -51,6 +51,49 @@ targets: [
 
 ## Usage
 
+### Terminology and Core Concepts
+
+If you are unfamiliar with the WebPush standard, we suggest you first familiarize yourself with the following core concepts:
+
+<details>
+<summary><strong>Subscriber</strong></summary>
+
+A **Subscriber** represents a device that has opted in to receive push messages from your service. 
+
+> [!IMPORTANT]
+> A subscriber should not be conflated with a user — a single user may be logged in on multiple devices, while a subscriber may be shared by multiple users on a single device. It is up to you to manage this complexity and ensure user information remains secure across session boundaries by registering, unregistering, and updating the subscriber when a user logs in or out.
+
+</details>
+
+<details>
+<summary><strong>Application Server</strong></summary>
+
+The **Application Server** is a server you run to manage subscriptions and send push notifications. The actual servers that perform these roles may be different, but they must all use the same VAPID keys to function correctly.
+
+> [!CAUTION]
+> Using a VAPID key that wasn't registered with a subscription <strong>will</strong> result in push messages failing to reach their subscribers.
+
+</details>
+
+<details>
+<summary><strong>VAPID Key</strong></summary>
+
+**VAPID**, or _Voluntary Application Server Identification_, describes a standard for letting your application server introduce itself at time of subscription registration so that the subscription returned back to you may only be used by your service, and can't be shared with other unrelated services.
+
+This is made possible by generating a VAPID key pair to represent your server with. At time of registration, the public key is shared with the browser, and the subscription that is returned is locked to this key. When sending a push message, the private key is used to identify your application server to the push service so that it knows who you are before forwarding messages to subscribers.
+
+> [!CAUTION]
+> It is important to note that you should strive to use the same key for as long as possible for a given subscriber — you won't be able to send messages to existing subscribers if you ever regenerate this key, so keep it secure!
+
+</details>
+
+<details>
+<summary><strong>Push Service</strong></summary>
+
+A **Push Service** is run by browsers to coordinate delivery of messages to subscribers on your behalf.
+
+</details>
+
 ### Generating Keys
 
 Before integrating WebPush into your server, you must generate one time VAPID keys to identify your server to push services with. To help we this, we provide `vapid-key-generator`, which you can install and use as needed:
