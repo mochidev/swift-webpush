@@ -29,7 +29,7 @@ Please check the [releases](https://github.com/mochidev/swift-webpush/releases) 
 dependencies: [
     .package(
         url: "https://github.com/mochidev/swift-webPush.git", 
-        .upToNextMinor(from: "0.1.1")
+        .upToNextMinor(from: "0.1.3")
     ),
 ],
 ...
