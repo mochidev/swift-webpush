@@ -181,6 +181,24 @@ extension VAPID.Configuration {
         }
     }
     
+    /// The satus of a key as it relates to a configuration.
+    ///
+    /// - SeeAlso: ``WebPushManager/keyStatus(for:)``
+    public enum KeyStatus: Sendable, Hashable {
+        /// The key is valid and should continue to be used.
+        case valid
+        
+        /// The key had been deprecated.
+        ///
+        /// The user should be encouraged to re-register using a new key.
+        case deprecated
+        
+        /// The key is unknown to the configuration.
+        ///
+        /// The configuration should be investigated as all keys should be accounted for.
+        case unknown
+    }
+    
     public struct Duration: Hashable, Comparable, Codable, ExpressibleByIntegerLiteral, AdditiveArithmetic, Sendable {
         public let seconds: Int
         

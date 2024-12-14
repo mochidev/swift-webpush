@@ -175,6 +175,18 @@ public actor WebPushManager: Sendable {
         vapidConfiguration.primaryKey?.id ?? vapidConfiguration.keys.randomElement()!.id
     }
     
+    /// Check the status of a key against the current configuration.
+    public nonisolated func keyStatus(for keyID: VAPID.Key.ID) -> VAPID.Configuration.KeyStatus {
+        guard let key = vapidKeyLookup[keyID]
+        else { return .unknown }
+        
+        if vapidConfiguration.deprecatedKeys?.contains(key) == true {
+            return .deprecated
+        }
+        
+        return .valid
+    }
+    
     /// Send a push message as raw data.
     ///
     /// The service worker you registered is expected to know how to decode the data you send.
