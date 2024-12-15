@@ -29,7 +29,7 @@ Please check the [releases](https://github.com/mochidev/swift-webpush/releases) 
 dependencies: [
     .package(
         url: "https://github.com/mochidev/swift-webPush.git", 
-        .upToNextMinor(from: "0.1.3")
+        .upToNextMinor(from: "0.1.4")
     ),
 ],
 ...
@@ -105,7 +105,13 @@ Before integrating WebPush into your server, you must generate one time VAPID ke
 
 To uninstall the generator:
 ```zsh
-% package experimental-uninstall vapid-key-generator
+% swift package experimental-uninstall vapid-key-generator
+```
+
+To update the generator, uninstall it and re-install it after pulling from main:
+```zsh
+% swift package experimental-uninstall vapid-key-generator
+% swift package experimental-install
 ```
 
 Once installed, a new configuration can be generated as needed:

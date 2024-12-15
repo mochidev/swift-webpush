@@ -53,11 +53,11 @@ struct MyCoolerTool: ParsableCommand {
             if silent {
                 print("\(json)")
             } else {
-                print("VAPID.Key (with quotes): \(json)\n\n")
+                print("VAPID.Key: \(json)\n\n")
                 print("Example Usage:")
                 print("    // TODO: Load this data from .env or from file system")
-                print("    let keyData = Data(#\" \(json) \"#.utf8)")
-                print("    let vapidKey = try JSONDecoder().decode(VAPID.Key.self, from: keyData)")
+                print("    let keyData = Data(\(json).utf8)")
+                print("    let vapidKey = try VAPID.Key(base64URLEncoded: keyData)")
             }
         } else if !keyOnly {
             let contactInformation = if let supportURL, email == nil {

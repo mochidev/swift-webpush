@@ -16,12 +16,25 @@ extension VoluntaryApplicationServerIdentification {
     public struct Key: Sendable {
         private var privateKey: P256.Signing.PrivateKey
         
+        /// Create a brand new VAPID signing key.
+        ///
+        /// - Note: You must persist this key somehow if you are creating it yourself.
         public init() {
             privateKey = P256.Signing.PrivateKey(compactRepresentable: false)
         }
         
+        /// Initialize a key from a P256 SIgning Private Key.
+        ///
+        /// - Warning: Do not re-use this key for any other purpose other than VAPID authorization!
         public init(privateKey: P256.Signing.PrivateKey) {
             self.privateKey = privateKey
+        }
+        
+        /// Decode a key directly from a Base 64 (URL) encoded string, or throw an error if decoding failed.
+        public init(base64URLEncoded: String) throws {
+            guard let data = Data(base64URLEncoded: base64URLEncoded)
+            else { throw Base64URLDecodingError() }
+            privateKey = try P256.Signing.PrivateKey(rawRepresentation: data)
         }
     }
 }
