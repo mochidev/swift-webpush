@@ -202,7 +202,7 @@ extension VAPID.Configuration {
     /// This allows administrators of push services to contact you should an issue arise with your application server.
     ///
     /// - Note: Although the specification notes that this field is optional, some push services may refuse connection from serers without contact information.
-    /// - SeeAlso: [RFC8292 Voluntary Application Server Identification (VAPID) for Web Push §2.1. Application Server Contact Information](https://datatracker.ietf.org/doc/html/rfc8292#section-2.1)
+    /// - SeeAlso: [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push §2.1. Application Server Contact Information](https://datatracker.ietf.org/doc/html/rfc8292#section-2.1)
     public enum ContactInformation: Hashable, Codable, Sendable {
         /// A URL-based contact method, such as a support page on your website.
         case url(URL)
