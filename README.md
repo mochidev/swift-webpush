@@ -176,6 +176,13 @@ TBD
 
 The `WebPushTesting` module can be used to obtain a mocked `WebPushManager` instance that allows you to capture all messages that are sent out, or throw your own errors to validate your code functions appropriately. Only import `WebPushTesting` in your testing targets.
 
+## Specifications
+
+- [RFC8030 Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
+- [RFC8188 Encrypted Content-Encoding for HTTP](https://datatracker.ietf.org/doc/html/rfc8188)
+- [RFC8291 Message Encryption for Web Push](https://datatracker.ietf.org/doc/html/rfc8291)
+- [RFC8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
+
 ## Contributing
 
 Contribution is welcome! Please take a look at the issues already available, or start a new discussion to propose a new feature. Although guarantees can't be made regarding feature requests, PRs that fit within the goals of the project and that have been discussed beforehand are more than welcome!
