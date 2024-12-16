@@ -260,6 +260,54 @@ struct VAPIDConfigurationTests {
                 """
             )
         }
+        
+        @Test func decodesIncompleteConfiguration() throws {
+            #expect(
+                try JSONDecoder().decode(VAPID.Configuration.self, from: Data(
+                    """
+                    {
+                      "contactInformation" : "mailto:test@example.com",
+                      "expirationDuration" : 79200,
+                      "primaryKey" : "FniTgSrf0l+BdfeC6LiblKXBbY4LQm0S+4STNCoJI+0=",
+                      "validityDuration" : 72000
+                    }
+                    """.utf8
+                )) ==
+                VAPID.Configuration(
+                    key: key1,
+                    contactInformation: .email("test@example.com")
+                )
+            )
+        }
+        
+        @Test func decodesWholeConfiguration() throws {
+            #expect(
+                try JSONDecoder().decode(VAPID.Configuration.self, from: Data(
+                    """
+                    {
+                      "contactInformation" : "mailto:test@example.com",
+                      "deprecatedKeys" : [
+                        "bcZgo/p2WFqXaKFzmYaDKO/gARjWvGi3oXyHM2QNlfE="
+                      ],
+                      "expirationDuration" : 3600,
+                      "keys" : [
+                        "wyQaGWNwvXKzVmPIhkqVQvQ+FKx1SNqHJ+re8n2ORrk="
+                      ],
+                      "primaryKey" : "FniTgSrf0l+BdfeC6LiblKXBbY4LQm0S+4STNCoJI+0=",
+                      "validityDuration" : 36000
+                    }
+                    """.utf8
+                )) ==
+                VAPID.Configuration(
+                    primaryKey: key1,
+                    keys: [key2],
+                    deprecatedKeys: [key1, key2, key3],
+                    contactInformation: .email("test@example.com"),
+                    expirationDuration: .hours(1),
+                    validityDuration: .hours(10)
+                )
+            )
+        }
     }
     
     @Suite
@@ -301,6 +349,11 @@ struct VAPIDConfigurationTests {
         @Test func comparison() {
             #expect(VAPID.Configuration.Duration.seconds(75) < VAPID.Configuration.Duration.minutes(2))
             #expect(VAPID.Configuration.Duration.seconds(175) > VAPID.Configuration.Duration.minutes(2))
+        }
+        
+        @Test func addingToDates() {
+            let now = Date()
+            #expect(now.adding(.seconds(5)) == now.addingTimeInterval(5))
         }
         
         @Test func coding() throws {
