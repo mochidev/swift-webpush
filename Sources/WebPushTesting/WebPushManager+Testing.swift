@@ -28,7 +28,7 @@ extension WebPushManager {
         messageHandler: @escaping @Sendable (
             _ message: Message,
             _ subscriber: Subscriber,
-            _ expiration: VAPID.Configuration.Duration,
+            _ expiration: Expiration,
             _ urgency: Urgency
         ) async throws -> Void
     ) -> WebPushManager {
