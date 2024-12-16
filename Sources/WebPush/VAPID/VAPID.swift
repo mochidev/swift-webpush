@@ -12,5 +12,5 @@ public typealias VAPID = VoluntaryApplicationServerIdentification
 
 /// A set of types for Voluntary Application Server Identification, also known as VAPID.
 ///
-/// - SeeAlso: [RFC8292](https://datatracker.ietf.org/doc/html/rfc8292)
+/// - SeeAlso: [RFC 8292](https://datatracker.ietf.org/doc/html/rfc8292)
 public enum VoluntaryApplicationServerIdentification: Sendable {}

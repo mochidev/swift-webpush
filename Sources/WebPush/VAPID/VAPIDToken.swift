@@ -12,7 +12,7 @@ import Foundation
 extension VAPID {
     /// An internal representation the token and authorization headers used self-identification.
     ///
-    /// - SeeAlso: [RFC8292 Voluntary Application Server Identification (VAPID) for Web Push §2. Application Server Self-Identification](https://datatracker.ietf.org/doc/html/rfc8292#section-2)
+    /// - SeeAlso: [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push §2. Application Server Self-Identification](https://datatracker.ietf.org/doc/html/rfc8292#section-2)
     struct Token: Hashable, Codable, Sendable {
         enum CodingKeys: String, CodingKey {
             case audience = "aud"

@@ -31,7 +31,7 @@ public protocol SubscriberProtocol: Sendable {
 
 /// The set of cryptographic secrets shared by the browser (is. user agent) along with a subscription.
 /// 
-/// - SeeAlso: [RFC8291 Message Encryption for Web Push §2.1. Key and Secret Distribution](https://datatracker.ietf.org/doc/html/rfc8291#section-2.1)
+/// - SeeAlso: [RFC 8291 Message Encryption for Web Push §2.1. Key and Secret Distribution](https://datatracker.ietf.org/doc/html/rfc8291#section-2.1)
 public struct UserAgentKeyMaterial: Sendable {
     /// The underlying type of an authentication secret.
     public typealias Salt = Data

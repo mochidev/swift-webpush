@@ -178,10 +178,10 @@ The `WebPushTesting` module can be used to obtain a mocked `WebPushManager` inst
 
 ## Specifications
 
-- [RFC8030 Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
-- [RFC8188 Encrypted Content-Encoding for HTTP](https://datatracker.ietf.org/doc/html/rfc8188)
-- [RFC8291 Message Encryption for Web Push](https://datatracker.ietf.org/doc/html/rfc8291)
-- [RFC8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
+- [RFC 8030 Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
+- [RFC 8188 Encrypted Content-Encoding for HTTP](https://datatracker.ietf.org/doc/html/rfc8188)
+- [RFC 8291 Message Encryption for Web Push](https://datatracker.ietf.org/doc/html/rfc8291)
+- [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
 
 ## Contributing
 
