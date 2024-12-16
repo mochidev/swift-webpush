@@ -8,9 +8,9 @@
 
 import Foundation
 
-public typealias VAPID = VoluntaryApplicationServerIdentification
+public typealias VoluntaryApplicationServerIdentification = VAPID
 
 /// A set of types for Voluntary Application Server Identification, also known as VAPID.
 ///
-/// - SeeAlso: [RFC 8292](https://datatracker.ietf.org/doc/html/rfc8292)
-public enum VoluntaryApplicationServerIdentification: Sendable {}
+/// - SeeAlso: [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
+public enum VAPID: Sendable {}

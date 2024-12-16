@@ -23,9 +23,9 @@ public protocol SubscriberProtocol: Sendable {
     
     /// The preferred VAPID Key ID to use, if available.
     ///
-    /// If unknown, use the key set to ``VoluntaryApplicationServerIdentification/Configuration/primaryKey``, but be aware that this may be different from the key originally used at time of subscription, and if it is, push messages will be rejected.
+    /// If unknown, use the key set to ``VAPID/Configuration/primaryKey``, but be aware that this may be different from the key originally used at time of subscription, and if it is, push messages will be rejected.
     ///
-    /// - Important: It is highly recommended to store the VAPID Key ID used at time of registration with the subscriber, and always supply the key itself to the manager. If you are phasing out the key and don't want new subscribers registered against it, store the key in ``VoluntaryApplicationServerIdentification/Configuration/deprecatedKeys``, otherwise store it in ``VoluntaryApplicationServerIdentification/Configuration/keys``.
+    /// - Important: It is highly recommended to store the VAPID Key ID used at time of registration with the subscriber, and always supply the key itself to the manager. If you are phasing out the key and don't want new subscribers registered against it, store the key in ``VAPID/Configuration/deprecatedKeys``, otherwise store it in ``VAPID/Configuration/keys``.
     var vapidKeyID: VAPID.Key.ID { get }
 }
 
