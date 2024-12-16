@@ -37,13 +37,15 @@ targets: [
     .target(
         name: "MyPackage",
         dependencies: [
-            "WebPush",
+            .product(name: "WebPush", package: "swift-webpush"),
+            ...
         ]
     ),
     .testTarget(
         name: "MyPackageTests",
         dependencies: [
-            "WebPushTesting",
+            .product(name: "WebPushTesting", package: "swift-webpush"),
+            ...
         ]
     ),
 ]
