@@ -259,13 +259,18 @@ extension VAPID.Configuration {
         case unknown
     }
     
+    /// A duration in seconds used to express when VAPID tokens will expire.
     public struct Duration: Hashable, Comparable, Codable, ExpressibleByIntegerLiteral, AdditiveArithmetic, Sendable {
+        /// The number of seconds represented by this duration.
         public let seconds: Int
         
+        /// Initialize a duration with a number of seconds.
+        @inlinable
         public init(seconds: Int) {
             self.seconds = seconds
         }
         
+        @inlinable
         public static func < (lhs: Self, rhs: Self) -> Bool {
             lhs.seconds < rhs.seconds
         }
@@ -280,37 +285,49 @@ extension VAPID.Configuration {
             try container.encode(self.seconds)
         }
         
+        @inlinable
         public init(integerLiteral value: Int) {
             self.seconds = value
         }
         
+        @inlinable
         public static func - (lhs: Self, rhs: Self) -> Self {
             Self(seconds: lhs.seconds - rhs.seconds)
         }
         
+        @inlinable
         public static func + (lhs: Self, rhs: Self) -> Self {
             Self(seconds: lhs.seconds + rhs.seconds)
         }
         
+        /// Make a duration with a number of seconds.
+        @inlinable
         public static func seconds(_ seconds: Int) -> Self {
             Self(seconds: seconds)
         }
         
+        /// Make a duration with a number of minutes.
+        @inlinable
         public static func minutes(_ minutes: Int) -> Self {
-            Self(seconds: minutes*60)
+            .seconds(minutes*60)
         }
         
+        /// Make a duration with a number of hours.
+        @inlinable
         public static func hours(_ hours: Int) -> Self {
-            Self(seconds: hours*60*60)
+            .minutes(hours*60)
         }
         
+        /// Make a duration with a number of days.
+        @inlinable
         public static func days(_ days: Int) -> Self {
-            Self(seconds: days*24*60*60)
+            .hours(days*24)
         }
     }
 }
 
 extension Date {
+    /// Helper to add a duration to a date.
     func adding(_ duration: VAPID.Configuration.Duration) -> Self {
         addingTimeInterval(TimeInterval(duration.seconds))
     }
