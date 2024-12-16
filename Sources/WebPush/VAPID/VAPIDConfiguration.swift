@@ -31,7 +31,7 @@ extension VoluntaryApplicationServerIdentification {
         /// The VAPID key that identifies the push service to subscribers.
         ///
         /// If not provided, a key from ``keys`` will be used instead.
-        /// - SeeAlso: ``VoluntaryApplicationServerIdentification/Configuration``
+        /// - SeeAlso: ``VAPID/Configuration``
         public private(set) var primaryKey: Key?
         
         /// The set of valid keys to choose from when identifying the applications erver to new registrations.

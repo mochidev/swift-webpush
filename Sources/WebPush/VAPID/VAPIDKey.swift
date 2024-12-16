@@ -12,7 +12,7 @@ import Foundation
 extension VoluntaryApplicationServerIdentification {
     /// Represents the application server's identification key that is used to confirm to a push service that the server connecting to it is the same one that was subscribed to.
     ///
-    /// When sharing with the browser, ``VoluntaryApplicationServerIdentification/Key/ID`` can be used.
+    /// When sharing with the browser, ``VAPID/Key/ID`` can be used.
     public struct Key: Sendable {
         private var privateKey: P256.Signing.PrivateKey
         
@@ -62,7 +62,7 @@ extension VAPID.Key: Codable {
 }
 
 extension VAPID.Key: Identifiable {
-    /// The identifier for a private ``VoluntaryApplicationServerIdentification/Key``'s public key.
+    /// The identifier for a private ``VAPID/Key``'s public key.
     ///
     /// This value can be shared as is with a subscription registration as the `applicationServerKey` key in JavaScript.
     ///
