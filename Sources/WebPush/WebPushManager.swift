@@ -515,12 +515,30 @@ extension WebPushManager {
 }
 
 extension WebPushManager {
+    /// The urgency with which to deliver a push message.
+    ///
+    /// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP §5.3. Push Message Urgency](https://datatracker.ietf.org/doc/html/rfc8030#section-5.3)
     public struct Urgency: Hashable, Comparable, Sendable, CustomStringConvertible {
         let rawValue: String
         
+        /// An urgency intended only for devices on power and Wi-Fi.
+        ///
+        /// For instance, very low ugency messages are ideal for advertisements.
         public static let veryLow = Self(rawValue: "very-low")
+        
+        /// An urgency intended for devices on either power or Wi-Fi.
+        ///
+        /// For instance, low ugency messages are ideal for topic updates.
         public static let low = Self(rawValue: "low")
+        
+        /// An urgency intended for devices on neither power nor Wi-Fi.
+        ///
+        /// For instance, normal ugency messages are ideal for chat or calendar messages.
         public static let normal = Self(rawValue: "normal")
+        
+        /// An urgency intended for devices even with low battery.
+        ///
+        /// For instance, high ugency messages are ideal for incoming phone calls or time-sensitive alerts.
         public static let high = Self(rawValue: "high")
         
         @usableFromInline
