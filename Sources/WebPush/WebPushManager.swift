@@ -199,7 +199,7 @@ public actor WebPushManager: Sendable {
     public func send(
         data message: some DataProtocol,
         to subscriber: some SubscriberProtocol,
-        expiration: VAPID.Configuration.Duration = .days(30),
+        expiration: Expiration = .recommendedMaximum,
         urgency: Urgency = .high
     ) async throws {
         switch executor {
@@ -228,7 +228,7 @@ public actor WebPushManager: Sendable {
     public func send(
         string message: some StringProtocol,
         to subscriber: some SubscriberProtocol,
-        expiration: VAPID.Configuration.Duration = .days(30),
+        expiration: Expiration = .recommendedMaximum,
         urgency: Urgency = .high
     ) async throws {
         try await routeMessage(
@@ -251,7 +251,7 @@ public actor WebPushManager: Sendable {
     public func send(
         json message: some Encodable&Sendable,
         to subscriber: some SubscriberProtocol,
-        expiration: VAPID.Configuration.Duration = .days(30),
+        expiration: Expiration = .recommendedMaximum,
         urgency: Urgency = .high
     ) async throws {
         try await routeMessage(
@@ -271,7 +271,7 @@ public actor WebPushManager: Sendable {
     func routeMessage(
         message: _Message,
         to subscriber: some SubscriberProtocol,
-        expiration: VAPID.Configuration.Duration,
+        expiration: Expiration,
         urgency: Urgency
     ) async throws {
         switch executor {
@@ -304,7 +304,7 @@ public actor WebPushManager: Sendable {
         httpClient: some HTTPClientProtocol,
         data message: some DataProtocol,
         subscriber: some SubscriberProtocol,
-        expiration: VAPID.Configuration.Duration,
+        expiration: Expiration,
         urgency: Urgency
     ) async throws {
         guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID]
@@ -377,13 +377,19 @@ public actor WebPushManager: Sendable {
         /// Attach the header with our public key and salt, along with the authentication tag.
         let requestContent = contentCodingHeader + encryptedRecord.ciphertext + encryptedRecord.tag
         
+        if expiration < Expiration.dropIfUndeliverable {
+            logger.error("The message expiration must be greater than or equal to \(Expiration.dropIfUndeliverable) seconds.", metadata: ["expiration": "\(expiration)"])
+        } else if expiration >= Expiration.recommendedMaximum {
+            logger.warning("The message expiration should be less than \(Expiration.recommendedMaximum) seconds.", metadata: ["expiration": "\(expiration)"])
+        }
+        
         /// Add the VAPID authorization and corrent content encoding and type.
         var request = HTTPClientRequest(url: subscriber.endpoint.absoluteURL.absoluteString)
         request.method = .POST
         request.headers.add(name: "Authorization", value: authorization)
         request.headers.add(name: "Content-Encoding", value: "aes128gcm")
         request.headers.add(name: "Content-Type", value: "application/octet-stream")
-        request.headers.add(name: "TTL", value: "\(expiration.seconds)")
+        request.headers.add(name: "TTL", value: "\(max(expiration, .dropIfUndeliverable).seconds)")
         request.headers.add(name: "Urgency", value: "\(urgency)")
         request.body = .bytes(ByteBuffer(bytes: requestContent))
         
@@ -423,6 +429,90 @@ extension WebPushManager: Service {
 }
 
 // MARK: - Public Types
+
+extension WebPushManager {
+    /// A duration in seconds used to express when push messages will expire.
+    ///
+    /// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP §5.2. Push Message Time-To-Live](https://datatracker.ietf.org/doc/html/rfc8030#section-5.2)
+    public struct Expiration: Hashable, Comparable, Codable, ExpressibleByIntegerLiteral, AdditiveArithmetic, Sendable {
+        /// The number of seconds represented by this expiration.
+        public let seconds: Int
+        
+        /// The recommended maximum expiration duration push services are expected to support.
+        ///
+        /// - Note: A time of 30 days was chosen to match the maximum Apple Push Notification Services (APNS) accepts, but there is otherwise no recommended value here. Note that other services are instead limited to 4 weeks, or 28 days.
+        public static let recommendedMaximum: Self = .days(30)
+        
+        /// The message will be delivered immediately, otherwise it'll be dropped.
+        ///
+        /// A Push message with a zero TTL is immediately delivered if the user agent is available to receive the message. After delivery, the push service is permitted to immediately remove a push message with a zero TTL. This might occur before the user agent acknowledges receipt of the message by performing an HTTP DELETE on the push message resource. Consequently, an application server cannot rely on receiving acknowledgement receipts for zero TTL push messages.
+        ///
+        /// If the user agent is unavailable, a push message with a zero TTL expires and is never delivered.
+        ///
+        /// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP §5.2. Push Message Time-To-Live](https://datatracker.ietf.org/doc/html/rfc8030#section-5.2)
+        public static let dropIfUndeliverable: Self = .zero
+        
+        /// Initialize an expiration with a number of seconds.
+        @inlinable
+        public init(seconds: Int) {
+            self.seconds = seconds
+        }
+        
+        @inlinable
+        public static func < (lhs: Self, rhs: Self) -> Bool {
+            lhs.seconds < rhs.seconds
+        }
+        
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            self.seconds = try container.decode(Int.self)
+        }
+        
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(self.seconds)
+        }
+        
+        @inlinable
+        public init(integerLiteral value: Int) {
+            self.seconds = value
+        }
+        
+        @inlinable
+        public static func - (lhs: Self, rhs: Self) -> Self {
+            Self(seconds: lhs.seconds - rhs.seconds)
+        }
+        
+        @inlinable
+        public static func + (lhs: Self, rhs: Self) -> Self {
+            Self(seconds: lhs.seconds + rhs.seconds)
+        }
+        
+        /// Make an expiration with a number of seconds.
+        @inlinable
+        public static func seconds(_ seconds: Int) -> Self {
+            Self(seconds: seconds)
+        }
+        
+        /// Make an expiration with a number of minutes.
+        @inlinable
+        public static func minutes(_ minutes: Int) -> Self {
+            .seconds(minutes*60)
+        }
+        
+        /// Make an expiration with a number of hours.
+        @inlinable
+        public static func hours(_ hours: Int) -> Self {
+            .minutes(hours*60)
+        }
+        
+        /// Make an expiration with a number of days.
+        @inlinable
+        public static func days(_ days: Int) -> Self {
+            .hours(days*24)
+        }
+    }
+}
 
 extension WebPushManager {
     public struct Urgency: Hashable, Comparable, Sendable, CustomStringConvertible {
@@ -495,7 +585,7 @@ extension WebPushManager {
         case handler(@Sendable (
             _ message: _Message,
             _ subscriber: Subscriber,
-            _ expiration: VAPID.Configuration.Duration,
+            _ expiration: Expiration,
             _ urgency: Urgency
         ) async throws -> Void)
     }
