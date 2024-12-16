@@ -379,7 +379,7 @@ public actor WebPushManager: Sendable {
         
         if expiration < Expiration.dropIfUndeliverable {
             logger.error("The message expiration must be greater than or equal to \(Expiration.dropIfUndeliverable) seconds.", metadata: ["expiration": "\(expiration)"])
-        } else if expiration >= Expiration.recommendedMaximum {
+        } else if expiration > Expiration.recommendedMaximum {
             logger.warning("The message expiration should be less than \(Expiration.recommendedMaximum) seconds.", metadata: ["expiration": "\(expiration)"])
         }
         
