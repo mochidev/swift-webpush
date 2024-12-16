@@ -10,6 +10,7 @@ import Foundation
 import WebPush
 
 extension VAPID.Configuration {
+    /// Make a new configuration useful for testing against.
     static func makeTesting() -> VAPID.Configuration {
         VAPID.Configuration(
             key: VAPID.Key(),

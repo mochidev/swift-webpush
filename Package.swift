@@ -44,6 +44,7 @@ let package = Package(
         ),
         .testTarget(name: "WebPushTests", dependencies: [
             .product(name: "AsyncHTTPClient", package: "async-http-client"),
+            .product(name: "Crypto", package: "swift-crypto"),
             .product(name: "Logging", package: "swift-log"),
             .product(name: "NIOCore", package: "swift-nio"),
             .product(name: "ServiceLifecycle", package: "swift-service-lifecycle"),

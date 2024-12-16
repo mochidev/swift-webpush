@@ -6,6 +6,8 @@
 //  Copyright © 2024 Mochi Development, Inc. All rights reserved.
 //
 
+import AsyncHTTPClient
+@preconcurrency import Crypto
 import Foundation
 import Logging
 import ServiceLifecycle
@@ -14,27 +16,60 @@ import Testing
 
 @Suite("WebPush Manager")
 struct WebPushManagerTests {
-    @Test func webPushManagerInitializesOnItsOwn() async throws {
-        let manager = WebPushManager(vapidConfiguration: .makeTesting())
-        await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask {
-                try await manager.run()
+    @Suite
+    struct Initialization {
+        @Test func managerInitializesOnItsOwn() async throws {
+            let manager = WebPushManager(vapidConfiguration: .makeTesting())
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
+                }
+                group.cancelAll()
             }
-            group.cancelAll()
+        }
+        
+        @Test func managerInitializesAsService() async throws {
+            let logger = Logger(label: "ServiceLogger", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
+            let manager = WebPushManager(
+                vapidConfiguration: .makeTesting(),
+                logger: logger
+            )
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await ServiceGroup(services: [manager], logger: logger).run()
+                }
+                group.cancelAll()
+            }
         }
     }
     
-    @Test func webPushManagerInitializesAsService() async throws {
-        let logger = Logger(label: "ServiceLogger", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
-        let manager = WebPushManager(
-            vapidConfiguration: .makeTesting(),
-            logger: logger
-        )
-        await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask {
-                try await ServiceGroup(services: [manager], logger: logger).run()
+    @Suite("Sending Messages")
+    struct SendingMessages {
+        @Test func sendSuccessfulTextMessage() async throws {
+            try await confirmation { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.makeTesting()
+                
+                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
+                    vapidKeyID: vapidConfiguration.primaryKey!.id
+                )
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    logger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(MockHTTPClient({ request in
+                        requestWasMade()
+                        return HTTPClientResponse(status: .created)
+                    }))
+                )
+                
+                try await manager.send(string: "hello", to: subscriber)
             }
-            group.cancelAll()
         }
     }
     
