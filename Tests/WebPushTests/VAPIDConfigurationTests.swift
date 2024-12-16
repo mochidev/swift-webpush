@@ -261,6 +261,54 @@ struct VAPIDConfigurationTests {
             )
         }
     }
+    
+    @Suite
+    struct Duration {
+        @Test func makingDurations() {
+            #expect(VAPID.Configuration.Duration.zero.seconds == 0)
+            
+            #expect(VAPID.Configuration.Duration(seconds: 15).seconds == 15)
+            #expect(VAPID.Configuration.Duration(seconds: -15).seconds == -15)
+            
+            #expect((15 as VAPID.Configuration.Duration).seconds == 15)
+            #expect((-15 as VAPID.Configuration.Duration).seconds == -15)
+            
+            #expect(VAPID.Configuration.Duration.seconds(15).seconds == 15)
+            #expect(VAPID.Configuration.Duration.seconds(-15).seconds == -15)
+            
+            #expect(VAPID.Configuration.Duration.minutes(15).seconds == 900)
+            #expect(VAPID.Configuration.Duration.minutes(-15).seconds == -900)
+            
+            #expect(VAPID.Configuration.Duration.hours(15).seconds == 54_000)
+            #expect(VAPID.Configuration.Duration.hours(-15).seconds == -54_000)
+            
+            #expect(VAPID.Configuration.Duration.days(15).seconds == 1_296_000)
+            #expect(VAPID.Configuration.Duration.days(-15).seconds == -1_296_000)
+        }
+        
+        @Test func arithmatic() {
+            let base: VAPID.Configuration.Duration = 15
+            #expect((base + 15).seconds == 30)
+            #expect((base - 15).seconds == 0)
+            
+            #expect((base - .seconds(30)) == -15)
+            #expect((base + .minutes(2)) == 135)
+            #expect((base + .minutes(2) + .hours(1)) == 3_735)
+            #expect((base + .minutes(2) + .hours(1) + .days(2)) == 176_535)
+            #expect((base + .seconds(45) + .minutes(59)) == .hours(1))
+        }
+        
+        @Test func comparison() {
+            #expect(VAPID.Configuration.Duration.seconds(75) < VAPID.Configuration.Duration.minutes(2))
+            #expect(VAPID.Configuration.Duration.seconds(175) > VAPID.Configuration.Duration.minutes(2))
+        }
+        
+        @Test func coding() throws {
+            #expect(String(decoding: try JSONEncoder().encode(VAPID.Configuration.Duration(60)), as: UTF8.self) == "60")
+            
+            #expect(try JSONDecoder().decode(VAPID.Configuration.Duration.self, from: Data("60".utf8)) == .minutes(1))
+        }
+    }
 }
 
 @Suite("Contact Information Coding")
