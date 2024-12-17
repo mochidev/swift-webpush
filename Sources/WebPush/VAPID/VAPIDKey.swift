@@ -66,7 +66,7 @@ extension VAPID.Key: Identifiable {
     ///
     /// This value can be shared as is with a subscription registration as the `applicationServerKey` key in JavaScript.
     ///
-    /// - SeeAlso: [Push API Working Draft §7.2. PushSubscriptionOptions Interface](https://www.w3.org/TR/push-api/#pushsubscriptionoptions-interface)
+    /// - SeeAlso: [Push API Working Draft §7.2. `PushSubscriptionOptions` Interface](https://www.w3.org/TR/push-api/#pushsubscriptionoptions-interface)
     public struct ID: Hashable, Comparable, Codable, Sendable, CustomStringConvertible {
         private var rawValue: String
         
@@ -93,6 +93,10 @@ extension VAPID.Key: Identifiable {
         }
     }
     
+    /// The public key component in a format suitable for user agents to consume.
+    ///
+    /// - SeeAlso: [Push API Working Draft §7.2. `PushSubscriptionOptions` Interface](https://www.w3.org/TR/push-api/#dom-pushsubscriptionoptions-applicationserverkey)
+    /// - SeeAlso: [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push §3.2. Public Key Parameter ("k")](https://datatracker.ietf.org/doc/html/rfc8292#section-3.2)
     public var id: ID {
         ID(privateKey.publicKey.x963Representation.base64URLEncodedString())
     }
