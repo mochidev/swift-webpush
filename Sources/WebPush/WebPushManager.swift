@@ -371,7 +371,8 @@ public actor WebPushManager: Sendable {
         let nonce = try HKDF<SHA256>.deriveKey(inputKeyMaterial: inputKeyMaterial, salt: salt, info: nonceInfo, outputByteCount: 12)
             .withUnsafeBytes(AES.GCM.Nonce.init(data:))
         
-        /// Encrypt the padded payload into a single record https://datatracker.ietf.org/doc/html/rfc8188
+        /// Encrypt the padded payload into a single record.
+        /// - SeeAlso: [RFC 8188 Encrypted Content-Encoding for HTTP](https://datatracker.ietf.org/doc/html/rfc8188)
         let encryptedRecord = try AES.GCM.seal(paddedPayload, using: contentEncryptionKey, nonce: nonce)
         
         /// Attach the header with our public key and salt, along with the authentication tag.
