@@ -28,7 +28,7 @@ Please check the [releases](https://github.com/mochidev/swift-webpush/releases) 
 ```swift
 dependencies: [
     .package(
-        url: "https://github.com/mochidev/swift-webPush.git", 
+        url: "https://github.com/mochidev/swift-webpush.git", 
         .upToNextMinor(from: "0.2.1")
     ),
 ],
@@ -180,10 +180,14 @@ The `WebPushTesting` module can be used to obtain a mocked `WebPushManager` inst
 
 ## Specifications
 
+- [RFC 7515 JSON Web Signature (JWS)](https://datatracker.ietf.org/doc/html/rfc7515)
+- [RFC 7519 JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
 - [RFC 8030 Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
 - [RFC 8188 Encrypted Content-Encoding for HTTP](https://datatracker.ietf.org/doc/html/rfc8188)
 - [RFC 8291 Message Encryption for Web Push](https://datatracker.ietf.org/doc/html/rfc8291)
 - [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
+
+- [Push API Working Draft](https://www.w3.org/TR/push-api/)
 
 ## Contributing
 
