@@ -142,6 +142,17 @@ extension VoluntaryApplicationServerIdentification {
             deprecatedKeys.subtract(keys)
             self.deprecatedKeys = deprecatedKeys.isEmpty ? nil : deprecatedKeys
         }
+        
+        /// Internal method to set invalid state for validation that other components are resiliant to these configurations.
+        mutating func unsafeUpdateKeys(
+            primaryKey: Key? = nil,
+            keys: Set<Key>,
+            deprecatedKeys: Set<Key>? = nil
+        ) {
+            self.primaryKey = primaryKey
+            self.keys = keys
+            self.deprecatedKeys = deprecatedKeys
+        }
     }
 }
 
