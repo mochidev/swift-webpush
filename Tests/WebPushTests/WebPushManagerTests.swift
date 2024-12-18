@@ -80,12 +80,6 @@ struct WebPushManagerTests {
                 .mockedKeyID2 : .mockedKey2,
                 .mockedKeyID3 : .mockedKey3,
             ])
-            await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    try await manager.run()
-                }
-                group.cancelAll()
-            }
         }
         
         /// This is needed to cover the `uniquingKeysWith` safety call completely.
@@ -94,12 +88,6 @@ struct WebPushManagerTests {
             configuration.unsafeUpdateKeys(primaryKey: .mockedKey1, keys: [.mockedKey1], deprecatedKeys: [.mockedKey1])
             let manager = WebPushManager(vapidConfiguration: configuration)
             #expect(await manager.vapidKeyLookup == [.mockedKeyID1 : .mockedKey1])
-            await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    try await manager.run()
-                }
-                group.cancelAll()
-            }
         }
     }
     
@@ -107,12 +95,6 @@ struct WebPushManagerTests {
         @Test func retrievesPrimaryKey() async {
             let manager = WebPushManager(vapidConfiguration: .mockedConfiguration)
             #expect(manager.nextVAPIDKeyID == .mockedKeyID1)
-            await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    try await manager.run()
-                }
-                group.cancelAll()
-            }
         }
         
         @Test func alwaysRetrievesPrimaryKey() async throws {
@@ -121,12 +103,6 @@ struct WebPushManagerTests {
             let manager = WebPushManager(vapidConfiguration: configuration)
             for _ in 0..<100_000 {
                 #expect(manager.nextVAPIDKeyID == .mockedKeyID1)
-            }
-            await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    try await manager.run()
-                }
-                group.cancelAll()
             }
         }
         
@@ -139,12 +115,6 @@ struct WebPushManagerTests {
                 keyCounts[manager.nextVAPIDKeyID, default: 0] += 1
             }
             #expect(abs(keyCounts[.mockedKeyID1, default: 0] - keyCounts[.mockedKeyID2, default: 0]) < 1_000) /// If this test fails, increase this number accordingly
-            await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    try await manager.run()
-                }
-                group.cancelAll()
-            }
         }
         
         @Test func neverRetrievesDeprecatedKeys() async throws {
@@ -153,12 +123,6 @@ struct WebPushManagerTests {
             let manager = WebPushManager(vapidConfiguration: configuration)
             for _ in 0..<100_000 {
                 #expect(manager.nextVAPIDKeyID != .mockedKeyID3)
-            }
-            await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    try await manager.run()
-                }
-                group.cancelAll()
             }
         }
         
@@ -170,12 +134,6 @@ struct WebPushManagerTests {
             #expect(manager.keyStatus(for: .mockedKeyID2) == .valid)
             #expect(manager.keyStatus(for: .mockedKeyID3) == .deprecated)
             #expect(manager.keyStatus(for: .mockedKeyID4) == .unknown)
-            await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    try await manager.run()
-                }
-                group.cancelAll()
-            }
         }
     }
     
