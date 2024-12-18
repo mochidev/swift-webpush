@@ -10,22 +10,19 @@ import Crypto
 import Foundation
 import Testing
 @testable import WebPush
+import WebPushTesting
 
 @Suite("VAPID Configuration Tests")
 struct VAPIDConfigurationTests {
     @Suite
     struct Initialization {
-        let key1 = try! VAPID.Key(base64URLEncoded: "FniTgSrf0l+BdfeC6LiblKXBbY4LQm0S+4STNCoJI+0=")
-        let key2 = try! VAPID.Key(base64URLEncoded: "wyQaGWNwvXKzVmPIhkqVQvQ+FKx1SNqHJ+re8n2ORrk=")
-        let key3 = try! VAPID.Key(base64URLEncoded: "bcZgo/p2WFqXaKFzmYaDKO/gARjWvGi3oXyHM2QNlfE=")
-        
         @Test func primaryKeyOnly() {
             let config = VAPID.Configuration(
-                key: key1,
+                key: .mockedKey1,
                 contactInformation: .email("test@email.com")
             )
-            #expect(config.primaryKey == key1)
-            #expect(config.keys == [key1])
+            #expect(config.primaryKey == .mockedKey1)
+            #expect(config.keys == [.mockedKey1])
             #expect(config.deprecatedKeys == nil)
             #expect(config.contactInformation == .email("test@email.com"))
             #expect(config.expirationDuration == .hours(22))
@@ -34,14 +31,14 @@ struct VAPIDConfigurationTests {
         
         @Test func emptyDeprecatedKeys() {
             let config = VAPID.Configuration(
-                key: key1,
+                key: .mockedKey1,
                 deprecatedKeys: [],
                 contactInformation: .url(URL(string: "https://example.com")!),
                 expirationDuration: .hours(24),
                 validityDuration: .hours(12)
             )
-            #expect(config.primaryKey == key1)
-            #expect(config.keys == [key1])
+            #expect(config.primaryKey == .mockedKey1)
+            #expect(config.keys == [.mockedKey1])
             #expect(config.deprecatedKeys == nil)
             #expect(config.contactInformation == .url(URL(string: "https://example.com")!))
             #expect(config.expirationDuration == .hours(24))
@@ -50,13 +47,13 @@ struct VAPIDConfigurationTests {
         
         @Test func deprecatedKeys() {
             let config = VAPID.Configuration(
-                key: key1,
-                deprecatedKeys: [key2, key3],
+                key: .mockedKey1,
+                deprecatedKeys: [.mockedKey2, .mockedKey3],
                 contactInformation: .email("test@email.com")
             )
-            #expect(config.primaryKey == key1)
-            #expect(config.keys == [key1])
-            #expect(config.deprecatedKeys == [key2, key3])
+            #expect(config.primaryKey == .mockedKey1)
+            #expect(config.keys == [.mockedKey1])
+            #expect(config.deprecatedKeys == [.mockedKey2, .mockedKey3])
             #expect(config.contactInformation == .email("test@email.com"))
             #expect(config.expirationDuration == .hours(22))
             #expect(config.validityDuration == .hours(20))
@@ -64,15 +61,15 @@ struct VAPIDConfigurationTests {
         
         @Test func deprecatedAndPrimaryKeys() {
             let config = VAPID.Configuration(
-                key: key1,
-                deprecatedKeys: [key2, key3, key1],
+                key: .mockedKey1,
+                deprecatedKeys: [.mockedKey2, .mockedKey3, .mockedKey1],
                 contactInformation: .url(URL(string: "https://example.com")!),
                 expirationDuration: .hours(24),
                 validityDuration: .hours(12)
             )
-            #expect(config.primaryKey == key1)
-            #expect(config.keys == [key1])
-            #expect(config.deprecatedKeys == [key2, key3])
+            #expect(config.primaryKey == .mockedKey1)
+            #expect(config.keys == [.mockedKey1])
+            #expect(config.deprecatedKeys == [.mockedKey2, .mockedKey3])
             #expect(config.contactInformation == .url(URL(string: "https://example.com")!))
             #expect(config.expirationDuration == .hours(24))
             #expect(config.validityDuration == .hours(12))
@@ -81,12 +78,12 @@ struct VAPIDConfigurationTests {
         @Test func multipleKeys() throws {
             let config = try VAPID.Configuration(
                 primaryKey: nil,
-                keys: [key1, key2],
+                keys: [.mockedKey1, .mockedKey2],
                 deprecatedKeys: nil,
                 contactInformation: .email("test@email.com")
             )
             #expect(config.primaryKey == nil)
-            #expect(config.keys == [key1, key2])
+            #expect(config.keys == [.mockedKey1, .mockedKey2])
             #expect(config.deprecatedKeys == nil)
             #expect(config.contactInformation == .email("test@email.com"))
             #expect(config.expirationDuration == .hours(22))
@@ -98,7 +95,7 @@ struct VAPIDConfigurationTests {
                 try VAPID.Configuration(
                     primaryKey: nil,
                     keys: [],
-                    deprecatedKeys: [key2, key3],
+                    deprecatedKeys: [.mockedKey2, .mockedKey3],
                     contactInformation: .email("test@email.com")
                 )
             }
@@ -107,12 +104,12 @@ struct VAPIDConfigurationTests {
         @Test func multipleAndDeprecatedKeys() throws {
             let config = try VAPID.Configuration(
                 primaryKey: nil,
-                keys: [key1, key2],
-                deprecatedKeys: [key2],
+                keys: [.mockedKey1, .mockedKey2],
+                deprecatedKeys: [.mockedKey2],
                 contactInformation: .email("test@email.com")
             )
             #expect(config.primaryKey == nil)
-            #expect(config.keys == [key1, key2])
+            #expect(config.keys == [.mockedKey1, .mockedKey2])
             #expect(config.deprecatedKeys == nil)
             #expect(config.contactInformation == .email("test@email.com"))
             #expect(config.expirationDuration == .hours(22))
@@ -121,16 +118,16 @@ struct VAPIDConfigurationTests {
         
         @Test func multipleAndPrimaryKeys() throws {
             let config = try VAPID.Configuration(
-                primaryKey: key1,
-                keys: [key2],
-                deprecatedKeys: [key2, key3, key1],
+                primaryKey: .mockedKey1,
+                keys: [.mockedKey2],
+                deprecatedKeys: [.mockedKey2, .mockedKey3, .mockedKey1],
                 contactInformation: .url(URL(string: "https://example.com")!),
                 expirationDuration: .hours(24),
                 validityDuration: .hours(12)
             )
-            #expect(config.primaryKey == key1)
-            #expect(config.keys == [key1, key2])
-            #expect(config.deprecatedKeys == [key3])
+            #expect(config.primaryKey == .mockedKey1)
+            #expect(config.keys == [.mockedKey1, .mockedKey2])
+            #expect(config.deprecatedKeys == [.mockedKey3])
             #expect(config.contactInformation == .url(URL(string: "https://example.com")!))
             #expect(config.expirationDuration == .hours(24))
             #expect(config.validityDuration == .hours(12))
@@ -139,21 +136,17 @@ struct VAPIDConfigurationTests {
     
     @Suite
     struct Updates {
-        let key1 = try! VAPID.Key(base64URLEncoded: "FniTgSrf0l+BdfeC6LiblKXBbY4LQm0S+4STNCoJI+0=")
-        let key2 = try! VAPID.Key(base64URLEncoded: "wyQaGWNwvXKzVmPIhkqVQvQ+FKx1SNqHJ+re8n2ORrk=")
-        let key3 = try! VAPID.Key(base64URLEncoded: "bcZgo/p2WFqXaKFzmYaDKO/gARjWvGi3oXyHM2QNlfE=")
-        
         @Test func primaryKeyOnly() throws {
-            var config = VAPID.Configuration(key: key1, contactInformation: .email("test@email.com"))
+            var config = VAPID.Configuration(key: .mockedKey1, contactInformation: .email("test@email.com"))
             
-            try config.updateKeys(primaryKey: key2, keys: [], deprecatedKeys: nil)
-            #expect(config.primaryKey == key2)
-            #expect(config.keys == [key2])
+            try config.updateKeys(primaryKey: .mockedKey2, keys: [], deprecatedKeys: nil)
+            #expect(config.primaryKey == .mockedKey2)
+            #expect(config.keys == [.mockedKey2])
             #expect(config.deprecatedKeys == nil)
         }
         
         @Test func noKeys() throws {
-            var config = VAPID.Configuration(key: key1, contactInformation: .email("test@email.com"))
+            var config = VAPID.Configuration(key: .mockedKey1, contactInformation: .email("test@email.com"))
             #expect(throws: VAPID.ConfigurationError.keysNotProvided) {
                 try config.updateKeys(primaryKey: nil, keys: [], deprecatedKeys: nil)
             }
@@ -161,59 +154,55 @@ struct VAPIDConfigurationTests {
                 try config.updateKeys(primaryKey: nil, keys: [], deprecatedKeys: [])
             }
             #expect(throws: VAPID.ConfigurationError.keysNotProvided) {
-                try config.updateKeys(primaryKey: nil, keys: [], deprecatedKeys: [key1])
+                try config.updateKeys(primaryKey: nil, keys: [], deprecatedKeys: [.mockedKey1])
             }
         }
         
         @Test func multipleKeys() throws {
-            var config = VAPID.Configuration(key: key1, contactInformation: .email("test@email.com"))
+            var config = VAPID.Configuration(key: .mockedKey1, contactInformation: .email("test@email.com"))
             
-            try config.updateKeys(primaryKey: nil, keys: [key2], deprecatedKeys: nil)
+            try config.updateKeys(primaryKey: nil, keys: [.mockedKey2], deprecatedKeys: nil)
             #expect(config.primaryKey == nil)
-            #expect(config.keys == [key2])
+            #expect(config.keys == [.mockedKey2])
             #expect(config.deprecatedKeys == nil)
             
-            try config.updateKeys(primaryKey: nil, keys: [key2, key3], deprecatedKeys: nil)
+            try config.updateKeys(primaryKey: nil, keys: [.mockedKey2, .mockedKey3], deprecatedKeys: nil)
             #expect(config.primaryKey == nil)
-            #expect(config.keys == [key2, key3])
+            #expect(config.keys == [.mockedKey2, .mockedKey3])
             #expect(config.deprecatedKeys == nil)
         }
         
         @Test func multipleAndDeprecatedKeys() throws {
-            var config = VAPID.Configuration(key: key1, contactInformation: .email("test@email.com"))
+            var config = VAPID.Configuration(key: .mockedKey1, contactInformation: .email("test@email.com"))
             
-            try config.updateKeys(primaryKey: nil, keys: [key2], deprecatedKeys: [key2, key3])
+            try config.updateKeys(primaryKey: nil, keys: [.mockedKey2], deprecatedKeys: [.mockedKey2, .mockedKey3])
             #expect(config.primaryKey == nil)
-            #expect(config.keys == [key2])
-            #expect(config.deprecatedKeys == [key3])
+            #expect(config.keys == [.mockedKey2])
+            #expect(config.deprecatedKeys == [.mockedKey3])
             
-            try config.updateKeys(primaryKey: nil, keys: [key2, key3], deprecatedKeys: [key2, key3])
+            try config.updateKeys(primaryKey: nil, keys: [.mockedKey2, .mockedKey3], deprecatedKeys: [.mockedKey2, .mockedKey3])
             #expect(config.primaryKey == nil)
-            #expect(config.keys == [key2, key3])
+            #expect(config.keys == [.mockedKey2, .mockedKey3])
             #expect(config.deprecatedKeys == nil)
         }
         
         @Test func multipleAndPrimaryKeys() throws {
-            var config = VAPID.Configuration(key: key1, contactInformation: .email("test@email.com"))
+            var config = VAPID.Configuration(key: .mockedKey1, contactInformation: .email("test@email.com"))
             
-            try config.updateKeys(primaryKey: key2, keys: [key3], deprecatedKeys: [key1, key2, key3])
-            #expect(config.primaryKey == key2)
-            #expect(config.keys == [key2, key3])
-            #expect(config.deprecatedKeys == [key1])
+            try config.updateKeys(primaryKey: .mockedKey2, keys: [.mockedKey3], deprecatedKeys: [.mockedKey1, .mockedKey2, .mockedKey3])
+            #expect(config.primaryKey == .mockedKey2)
+            #expect(config.keys == [.mockedKey2, .mockedKey3])
+            #expect(config.deprecatedKeys == [.mockedKey1])
             
-            try config.updateKeys(primaryKey: key2, keys: [key3], deprecatedKeys: [key2, key3])
-            #expect(config.primaryKey == key2)
-            #expect(config.keys == [key2, key3])
+            try config.updateKeys(primaryKey: .mockedKey2, keys: [.mockedKey3], deprecatedKeys: [.mockedKey2, .mockedKey3])
+            #expect(config.primaryKey == .mockedKey2)
+            #expect(config.keys == [.mockedKey2, .mockedKey3])
             #expect(config.deprecatedKeys == nil)
         }
     }
     
     @Suite
     struct Coding {
-        let key1 = try! VAPID.Key(base64URLEncoded: "FniTgSrf0l+BdfeC6LiblKXBbY4LQm0S+4STNCoJI+0=")
-        let key2 = try! VAPID.Key(base64URLEncoded: "wyQaGWNwvXKzVmPIhkqVQvQ+FKx1SNqHJ+re8n2ORrk=")
-        let key3 = try! VAPID.Key(base64URLEncoded: "bcZgo/p2WFqXaKFzmYaDKO/gARjWvGi3oXyHM2QNlfE=")
-        
         func encode(_ configuration: VAPID.Configuration) throws -> String {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -222,7 +211,7 @@ struct VAPIDConfigurationTests {
         
         @Test func encodesPrimaryKeyOnly() async throws {
             #expect(
-                try encode(.init(key: key1, contactInformation: .email("test@example.com"))) ==
+                try encode(.init(key: .mockedKey1, contactInformation: .email("test@example.com"))) ==
                 """
                 {
                   "contactInformation" : "mailto:test@example.com",
@@ -237,9 +226,9 @@ struct VAPIDConfigurationTests {
         @Test func encodesMultipleKeysWithoutDuplicates() async throws {
             #expect(
                 try encode(.init(
-                    primaryKey: key1,
-                    keys: [key2],
-                    deprecatedKeys: [key1, key2, key3],
+                    primaryKey: .mockedKey1,
+                    keys: [.mockedKey2],
+                    deprecatedKeys: [.mockedKey1, .mockedKey2, .mockedKey3],
                     contactInformation: .email("test@example.com"),
                     expirationDuration: .hours(1),
                     validityDuration: .hours(10)
@@ -274,7 +263,7 @@ struct VAPIDConfigurationTests {
                     """.utf8
                 )) ==
                 VAPID.Configuration(
-                    key: key1,
+                    key: .mockedKey1,
                     contactInformation: .email("test@example.com")
                 )
             )
@@ -299,9 +288,9 @@ struct VAPIDConfigurationTests {
                     """.utf8
                 )) ==
                 VAPID.Configuration(
-                    primaryKey: key1,
-                    keys: [key2],
-                    deprecatedKeys: [key1, key2, key3],
+                    primaryKey: .mockedKey1,
+                    keys: [.mockedKey2],
+                    deprecatedKeys: [.mockedKey1, .mockedKey2, .mockedKey3],
                     contactInformation: .email("test@example.com"),
                     expirationDuration: .hours(1),
                     validityDuration: .hours(10)
