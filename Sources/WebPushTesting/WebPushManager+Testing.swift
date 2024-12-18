@@ -10,6 +10,7 @@ import Logging
 import WebPush
 
 extension WebPushManager {
+    /// A push message in its original form, either ``/Foundation/Data``, ``/Swift/String``, or ``/Foundation/Encodable``.
     public typealias Message = _Message
     
     /// Create a mocked web push manager.

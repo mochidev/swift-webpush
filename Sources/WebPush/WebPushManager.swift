@@ -15,21 +15,47 @@ import NIOCore
 import NIOPosix
 import ServiceLifecycle
 
+/// A manager for sending push messages to subscribers.
+///
+/// You should instantiate and keep a reference to a single manager, passing a reference as a dependency to requests and other controllers that need to send messages. This is because the manager has an internal cache for managing connections to push services.
+///
+/// The manager should be installed as a service to wait for any in-flight messages to be sent before your application server shuts down.
 public actor WebPushManager: Sendable {
+    /// The VAPID configuration used when configuring the manager.
     public let vapidConfiguration: VAPID.Configuration
     
     /// The maximum encrypted payload size guaranteed by the spec.
+    ///
+    /// Currently the spec guarantees up to 4,096 encrypted bytes will always be successfull.
+    ///
+    /// - Note: _Some_, but not all, push services allow an effective encrypted message size that is larger than this, as they misinterpreted the 4096 maximum payload size as the plaintext maximum size, and support the larger size to this day. This library will however warn if this threshold is surpassed and attempt sending the message anyways — it is up to the caller to make sure messages over this size are not regularly attempted, and for fallback mechanisms to be put in place should push result in an error.
     public static let maximumEncryptedPayloadSize = 4096
     
     /// The maximum message size allowed.
+    ///
+    /// This is currently set to 3,993 plaintext bytes. See the discussion for ``maximumEncryptedPayloadSize`` for more information.
     public static let maximumMessageSize = maximumEncryptedPayloadSize - 103
     
+    /// The internal logger to use when reporting status.
     nonisolated let logger: Logger
+    
+    /// The internal executor to use when delivering messages.
     var executor: Executor
     
+    /// An internal lookup of keys as provided by the VAPID configuration.
     let vapidKeyLookup: [VAPID.Key.ID : VAPID.Key]
+    
+    /// An internal cache of `Authorization` header values for a combination of endpoint origin and VAPID key ID.
+    /// - SeeAlso: ``loadCurrentVAPIDAuthorizationHeader(endpoint:signingKey:)``
     var vapidAuthorizationCache: [String : (authorization: String, validUntil: Date)] = [:]
     
+    /// Initialize a manager with a VAPID configuration.
+    /// 
+    /// - Note: On debug builds, this initializer will assert if VAPID authorization header expiration times are inconsistently set.
+    /// - Parameters:
+    ///   - vapidConfiguration: The VAPID configuration to use when identifying the application server.
+    ///   - logger: An optional parent logger to use for status updates.
+    ///   - eventLoopGroupProvider: The event loop to use for the internal HTTP client.
     public init(
         vapidConfiguration: VAPID.Configuration,
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
@@ -63,8 +89,12 @@ public actor WebPushManager: Sendable {
     }
     
     /// Internal method to install a different executor for mocking.
-    ///
+    /// 
     /// Note that this must be called before ``run()`` is called or the client's syncShutdown won't be called.
+    /// - Parameters:
+    ///   - vapidConfiguration: The VAPID configuration to use when identifying the application server.
+    ///   - logger: The logger to use for status updates.
+    ///   - executor: The executor to use when sending push messages.
     package init(
         vapidConfiguration: VAPID.Configuration,
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
@@ -401,7 +431,7 @@ public actor WebPushManager: Sendable {
         switch response.status {
         case .created: break
         case .notFound, .gone: throw BadSubscriberError()
-        // TODO: 413 payload too large - warn and throw error
+        // TODO: 413 payload too large - log.error and throw error
         // TODO: 429 too many requests, 500 internal server error, 503 server shutting down - check config and perform a retry after a delay?
         default: throw HTTPError(response: response)
         }
@@ -520,6 +550,7 @@ extension WebPushManager {
     ///
     /// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP §5.3. Push Message Urgency](https://datatracker.ietf.org/doc/html/rfc8030#section-5.3)
     public struct Urgency: Hashable, Comparable, Sendable, CustomStringConvertible {
+        /// The internal raw value that is encoded in this type's place when calling ``description``.
         let rawValue: String
         
         /// An urgency intended only for devices on power and Wi-Fi.
@@ -542,6 +573,7 @@ extension WebPushManager {
         /// For instance, high ugency messages are ideal for incoming phone calls or time-sensitive alerts.
         public static let high = Self(rawValue: "high")
         
+        /// An internal sort order for urgencies.
         @usableFromInline
         var comparableValue: Int {
             switch self {
@@ -577,11 +609,17 @@ extension WebPushManager.Urgency: Codable {
 // MARK: - Package Types
 
 extension WebPushManager {
+    /// An internal type representing a push message, accessible when using ``/WebPushTesting``.
     public enum _Message: Sendable {
+        /// A message originally sent via ``WebPushManager/send(data:to:expiration:urgency:)``
         case data(Data)
+        
+        /// A message originally sent via ``WebPushManager/send(string:to:expiration:urgency:)``
         case string(String)
+        /// A message originally sent via ``WebPushManager/send(json:to:expiration:urgency:)
         case json(any Encodable&Sendable)
         
+        /// The message, encoded as data.
         var data: Data {
             get throws {
                 switch self {
@@ -599,8 +637,16 @@ extension WebPushManager {
         }
     }
     
+    /// An internal type representing the executor for a push message.
     package enum Executor: Sendable {
+        /// Use an HTTP client to send an encrypted payload to a subscriber.
+        ///
+        /// This is used in tests to capture the encrypted request and make sure it is well-formed.
         case httpClient(any HTTPClientProtocol)
+        
+        /// Use a handler to capture the original message.
+        ///
+        /// This is used by ``/WebPushTesting`` to allow mocking a ``WebPushManager``.
         case handler(@Sendable (
             _ message: _Message,
             _ subscriber: Subscriber,
