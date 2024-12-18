@@ -13,6 +13,7 @@ import Logging
 import ServiceLifecycle
 import Testing
 @testable import WebPush
+import WebPushTesting
 
 @Suite("WebPush Manager")
 struct WebPushManagerTests {
@@ -37,6 +38,141 @@ struct WebPushManagerTests {
             await withThrowingTaskGroup(of: Void.self) { group in
                 group.addTask {
                     try await ServiceGroup(services: [manager], logger: logger).run()
+                }
+                group.cancelAll()
+            }
+        }
+        
+        @Test func managerCanCreateThreadPool() async throws {
+            let manager = WebPushManager(vapidConfiguration: .makeTesting(), eventLoopGroupProvider: .createNew)
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
+                }
+                group.cancelAll()
+            }
+        }
+        
+        @Test func managerCanBeMocked() async throws {
+            let manager = WebPushManager.makeMockedManager { _, _, _, _ in }
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
+                }
+                group.cancelAll()
+            }
+        }
+        
+        /// Enable when https://github.com/swiftlang/swift-testing/blob/jgrynspan/exit-tests-proposal/Documentation/Proposals/NNNN-exit-tests.md gets accepted.
+//        @Test func managerCatchesIncorrectValidity() async throws {
+//            await #expect(exitsWith: .failure) {
+//                var configuration = VAPID.Configuration(key: .init(), contactInformation: .email("test@example.com"))
+//                configuration.validityDuration = .days(2)
+//                let _ = WebPushManager(vapidConfiguration: configuration)
+//            }
+//        }
+        
+        @Test func managerConstructsAValidKeyLookup() async throws {
+            let configuration = try VAPID.Configuration(primaryKey: .mockedKey1, keys: [.mockedKey2], deprecatedKeys: [.mockedKey3], contactInformation: .email("test@example.com"))
+            let manager = WebPushManager(vapidConfiguration: configuration)
+            #expect(await manager.vapidKeyLookup == [
+                .mockedKeyID1 : .mockedKey1,
+                .mockedKeyID2 : .mockedKey2,
+                .mockedKeyID3 : .mockedKey3,
+            ])
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
+                }
+                group.cancelAll()
+            }
+        }
+        
+        /// This is needed to cover the `uniquingKeysWith` safety call completely.
+        @Test func managerConstructsAValidKeyLookupFromQuestionableConfiguration() async throws {
+            var configuration = VAPID.Configuration.mocked
+            configuration.unsafeUpdateKeys(primaryKey: .mockedKey1, keys: [.mockedKey1], deprecatedKeys: [.mockedKey1])
+            let manager = WebPushManager(vapidConfiguration: configuration)
+            #expect(await manager.vapidKeyLookup == [.mockedKeyID1 : .mockedKey1])
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
+                }
+                group.cancelAll()
+            }
+        }
+    }
+    
+    @Suite("VAPID Key Retrieval") struct VAPIDKeyRetrieval {
+        @Test func retrievesPrimaryKey() async {
+            let manager = WebPushManager(vapidConfiguration: .mocked)
+            #expect(manager.nextVAPIDKeyID == .mockedKeyID1)
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
+                }
+                group.cancelAll()
+            }
+        }
+        
+        @Test func alwaysRetrievesPrimaryKey() async throws {
+            var configuration = VAPID.Configuration.mocked
+            try configuration.updateKeys(primaryKey: .mockedKey1, keys: [.mockedKey2], deprecatedKeys: [.mockedKey3])
+            let manager = WebPushManager(vapidConfiguration: configuration)
+            for _ in 0..<100_000 {
+                #expect(manager.nextVAPIDKeyID == .mockedKeyID1)
+            }
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
+                }
+                group.cancelAll()
+            }
+        }
+        
+        @Test func retrievesFallbackKeys() async throws {
+            var configuration = VAPID.Configuration.mocked
+            try configuration.updateKeys(primaryKey: nil, keys: [.mockedKey1, .mockedKey2])
+            let manager = WebPushManager(vapidConfiguration: configuration)
+            var keyCounts: [VAPID.Key.ID : Int] = [:]
+            for _ in 0..<100_000 {
+                keyCounts[manager.nextVAPIDKeyID, default: 0] += 1
+            }
+            #expect(abs(keyCounts[.mockedKeyID1, default: 0] - keyCounts[.mockedKeyID2, default: 0]) < 1_000) /// If this test fails, increase this number accordingly
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
+                }
+                group.cancelAll()
+            }
+        }
+        
+        @Test func neverRetrievesDeprecatedKeys() async throws {
+            var configuration = VAPID.Configuration.mocked
+            try configuration.updateKeys(primaryKey: nil, keys: [.mockedKey1, .mockedKey2], deprecatedKeys: [.mockedKey3])
+            let manager = WebPushManager(vapidConfiguration: configuration)
+            for _ in 0..<100_000 {
+                #expect(manager.nextVAPIDKeyID != .mockedKeyID3)
+            }
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
+                }
+                group.cancelAll()
+            }
+        }
+        
+        @Test func keyStatus() async throws {
+            var configuration = VAPID.Configuration.mocked
+            try configuration.updateKeys(primaryKey: .mockedKey1, keys: [.mockedKey2], deprecatedKeys: [.mockedKey3])
+            let manager = WebPushManager(vapidConfiguration: configuration)
+            #expect(manager.keyStatus(for: .mockedKeyID1) == .valid)
+            #expect(manager.keyStatus(for: .mockedKeyID2) == .valid)
+            #expect(manager.keyStatus(for: .mockedKeyID3) == .deprecated)
+            #expect(manager.keyStatus(for: .mockedKeyID4) == .unknown)
+            await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await manager.run()
                 }
                 group.cancelAll()
             }
