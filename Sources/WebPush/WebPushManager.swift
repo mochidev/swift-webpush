@@ -42,6 +42,9 @@ public actor WebPushManager: Sendable {
     /// The internal executor to use when delivering messages.
     var executor: Executor
     
+    /// An internal flag indicating if a manager was shutdown already.
+    var didShutdown = false
+    
     /// An internal lookup of keys as provided by the VAPID configuration.
     let vapidKeyLookup: [VAPID.Key.ID : VAPID.Key]
     
@@ -119,6 +122,12 @@ public actor WebPushManager: Sendable {
         )
         self.logger = logger
         self.executor = executor
+    }
+    
+    deinit {
+        if !didShutdown, case let .httpClient(httpClient) = executor {
+            try? httpClient.syncShutdown()
+        }
     }
     
     /// Load an up-to-date Authorization header for the specified endpoint and signing key combo.
@@ -448,6 +457,11 @@ public actor WebPushManager: Sendable {
 extension WebPushManager: Service {
     public func run() async throws {
         logger.info("Starting up WebPushManager")
+        guard !didShutdown else {
+            assertionFailure("The manager was already shutdown and cannot be started.")
+            logger.error("The manager was already shutdown and cannot be started. Run your application server in debug mode to catch this.")
+            return
+        }
         try await withTaskCancellationOrGracefulShutdownHandler {
             try await gracefulShutdown()
         } onCancelOrGracefulShutdown: { [logger, executor] in
@@ -462,6 +476,7 @@ extension WebPushManager: Service {
                 ])
             }
         }
+        didShutdown = true
     }
 }
 
