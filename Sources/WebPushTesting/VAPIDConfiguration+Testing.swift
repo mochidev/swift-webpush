@@ -12,5 +12,5 @@ import WebPush
 
 extension VAPID.Configuration {
     /// A mocked configuration useful when testing with the library, since the mocked manager doesn't make use of it anyways.
-    public static let mocked = VAPID.Configuration(key: .mockedKey1, contactInformation: .email("test@example.com"))
+    public static let mockedConfiguration = VAPID.Configuration(key: .mockedKey1, contactInformation: .email("test@example.com"))
 }
