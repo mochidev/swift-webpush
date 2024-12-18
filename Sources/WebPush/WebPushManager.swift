@@ -101,9 +101,15 @@ public actor WebPushManager: Sendable {
         logger: Logger,
         executor: Executor
     ) {
-        assert(vapidConfiguration.validityDuration <= vapidConfiguration.expirationDuration, "The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring.");
-        assert(vapidConfiguration.expirationDuration <= .hours(24), "The expiration duration must be less than 24 hours or else push endpoints will reject messages sent to them.");
-        precondition(!vapidConfiguration.keys.isEmpty, "VAPID.Configuration must have keys specified.")
+        if vapidConfiguration.validityDuration > vapidConfiguration.expirationDuration {
+            assertionFailure("The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring.")
+            logger.error("The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring. Run your application server with the same configuration in debug mode to catch this.")
+        }
+        if vapidConfiguration.expirationDuration > .hours(24) {
+            assertionFailure("The expiration duration must be less than 24 hours or else push endpoints will reject messages sent to them.")
+            logger.error("The expiration duration must be less than 24 hours or else push endpoints will reject messages sent to them. Run your application server with the same configuration in debug mode to catch this.")
+        }
+        precondition(!vapidConfiguration.keys.isEmpty, "VAPID.Configuration must have keys specified. Please report this as a bug with reproduction steps if encountered: https://github.com/mochidev/swift-webpush/issues.")
         
         self.vapidConfiguration = vapidConfiguration
         let allKeys = vapidConfiguration.keys + Array(vapidConfiguration.deprecatedKeys ?? [])
