@@ -23,7 +23,7 @@ extension WebPushManager {
     ///   - messageHandler: A handler to receive messages or throw errors.
     /// - Returns: A new manager suitable for mocking.
     public static func makeMockedManager(
-        vapidConfiguration: VAPID.Configuration = .mocked,
+        vapidConfiguration: VAPID.Configuration = .mockedConfiguration,
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
         logger: Logger? = nil,
         messageHandler: @escaping @Sendable (

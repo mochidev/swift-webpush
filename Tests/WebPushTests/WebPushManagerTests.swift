@@ -90,7 +90,7 @@ struct WebPushManagerTests {
         
         /// This is needed to cover the `uniquingKeysWith` safety call completely.
         @Test func managerConstructsAValidKeyLookupFromQuestionableConfiguration() async throws {
-            var configuration = VAPID.Configuration.mocked
+            var configuration = VAPID.Configuration.mockedConfiguration
             configuration.unsafeUpdateKeys(primaryKey: .mockedKey1, keys: [.mockedKey1], deprecatedKeys: [.mockedKey1])
             let manager = WebPushManager(vapidConfiguration: configuration)
             #expect(await manager.vapidKeyLookup == [.mockedKeyID1 : .mockedKey1])
@@ -105,7 +105,7 @@ struct WebPushManagerTests {
     
     @Suite("VAPID Key Retrieval") struct VAPIDKeyRetrieval {
         @Test func retrievesPrimaryKey() async {
-            let manager = WebPushManager(vapidConfiguration: .mocked)
+            let manager = WebPushManager(vapidConfiguration: .mockedConfiguration)
             #expect(manager.nextVAPIDKeyID == .mockedKeyID1)
             await withThrowingTaskGroup(of: Void.self) { group in
                 group.addTask {
@@ -116,7 +116,7 @@ struct WebPushManagerTests {
         }
         
         @Test func alwaysRetrievesPrimaryKey() async throws {
-            var configuration = VAPID.Configuration.mocked
+            var configuration = VAPID.Configuration.mockedConfiguration
             try configuration.updateKeys(primaryKey: .mockedKey1, keys: [.mockedKey2], deprecatedKeys: [.mockedKey3])
             let manager = WebPushManager(vapidConfiguration: configuration)
             for _ in 0..<100_000 {
@@ -131,7 +131,7 @@ struct WebPushManagerTests {
         }
         
         @Test func retrievesFallbackKeys() async throws {
-            var configuration = VAPID.Configuration.mocked
+            var configuration = VAPID.Configuration.mockedConfiguration
             try configuration.updateKeys(primaryKey: nil, keys: [.mockedKey1, .mockedKey2])
             let manager = WebPushManager(vapidConfiguration: configuration)
             var keyCounts: [VAPID.Key.ID : Int] = [:]
@@ -148,7 +148,7 @@ struct WebPushManagerTests {
         }
         
         @Test func neverRetrievesDeprecatedKeys() async throws {
-            var configuration = VAPID.Configuration.mocked
+            var configuration = VAPID.Configuration.mockedConfiguration
             try configuration.updateKeys(primaryKey: nil, keys: [.mockedKey1, .mockedKey2], deprecatedKeys: [.mockedKey3])
             let manager = WebPushManager(vapidConfiguration: configuration)
             for _ in 0..<100_000 {
@@ -163,7 +163,7 @@ struct WebPushManagerTests {
         }
         
         @Test func keyStatus() async throws {
-            var configuration = VAPID.Configuration.mocked
+            var configuration = VAPID.Configuration.mockedConfiguration
             try configuration.updateKeys(primaryKey: .mockedKey1, keys: [.mockedKey2], deprecatedKeys: [.mockedKey3])
             let manager = WebPushManager(vapidConfiguration: configuration)
             #expect(manager.keyStatus(for: .mockedKeyID1) == .valid)
