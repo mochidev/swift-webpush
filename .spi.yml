@@ -1,4 +1,4 @@
 version: 1
 builder:
   configs:
-    - documentation_targets: [WebPush]
+    - documentation_targets: [WebPush, WebPushTesting]
