@@ -33,7 +33,7 @@ struct WebPushManagerTests {
             let logger = Logger(label: "ServiceLogger", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
             let manager = WebPushManager(
                 vapidConfiguration: .makeTesting(),
-                logger: logger
+                backgroundActivityLogger: logger
             )
             await withThrowingTaskGroup(of: Void.self) { group in
                 group.addTask {
@@ -217,7 +217,7 @@ struct WebPushManagerTests {
                 
                 let manager = WebPushManager(
                     vapidConfiguration: vapidConfiguration,
-                    logger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         try validateAuthotizationHeader(
                             request: request,
@@ -264,7 +264,7 @@ struct WebPushManagerTests {
                 
                 let manager = WebPushManager(
                     vapidConfiguration: vapidConfiguration,
-                    logger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         try validateAuthotizationHeader(
                             request: request,
@@ -311,7 +311,7 @@ struct WebPushManagerTests {
                 
                 let manager = WebPushManager(
                     vapidConfiguration: vapidConfiguration,
-                    logger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         try validateAuthotizationHeader(
                             request: request,
@@ -358,7 +358,7 @@ struct WebPushManagerTests {
                 
                 let manager = WebPushManager(
                     vapidConfiguration: vapidConfiguration,
-                    logger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
                         return HTTPClientResponse(status: .notFound)
@@ -387,7 +387,7 @@ struct WebPushManagerTests {
                 
                 let manager = WebPushManager(
                     vapidConfiguration: vapidConfiguration,
-                    logger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
                         return HTTPClientResponse(status: .gone)
@@ -416,7 +416,7 @@ struct WebPushManagerTests {
                 
                 let manager = WebPushManager(
                     vapidConfiguration: vapidConfiguration,
-                    logger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
                         return HTTPClientResponse(status: .internalServerError)

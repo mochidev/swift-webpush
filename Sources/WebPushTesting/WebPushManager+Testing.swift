@@ -25,7 +25,7 @@ extension WebPushManager {
     public static func makeMockedManager(
         vapidConfiguration: VAPID.Configuration = .mockedConfiguration,
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
-        logger: Logger? = nil,
+        backgroundActivityLogger: Logger? = .defaultWebPushPrintLogger,
         messageHandler: @escaping @Sendable (
             _ message: Message,
             _ subscriber: Subscriber,
@@ -33,11 +33,11 @@ extension WebPushManager {
             _ urgency: Urgency
         ) async throws -> Void
     ) -> WebPushManager {
-        let logger = Logger(label: "MockWebPushManager", factory: { logger?.handler ?? PrintLogHandler(label: $0, metadataProvider: $1) })
+        let backgroundActivityLogger = backgroundActivityLogger ?? .defaultWebPushNoOpLogger
         
         return WebPushManager(
             vapidConfiguration: vapidConfiguration,
-            logger: logger,
+            backgroundActivityLogger: backgroundActivityLogger,
             executor: .handler(messageHandler)
         )
     }

@@ -37,7 +37,7 @@ public actor WebPushManager: Sendable {
     public static let maximumMessageSize = maximumEncryptedPayloadSize - 103
     
     /// The internal logger to use when reporting misconfiguration and background activity.
-    nonisolated let logger: Logger
+    nonisolated let backgroundActivityLogger: Logger
     
     /// The internal executor to use when delivering messages.
     var executor: Executor
@@ -57,15 +57,15 @@ public actor WebPushManager: Sendable {
     /// - Note: On debug builds, this initializer will assert if VAPID authorization header expiration times are inconsistently set.
     /// - Parameters:
     ///   - vapidConfiguration: The VAPID configuration to use when identifying the application server.
-    ///   - logger: The logger to use for misconfiguration and background activity. By default, a print logger will be used, and if set to `nil`, a no-op logger will be used in release builds. When running in a server environment, your shared logger should be used instead giving you full control of logging.
+    ///   - backgroundActivityLogger: The logger to use for misconfiguration and background activity. By default, a print logger will be used, and if set to `nil`, a no-op logger will be used in release builds. When running in a server environment, your shared logger should be used instead giving you full control of logging.
     ///   - eventLoopGroupProvider: The event loop to use for the internal HTTP client.
     public init(
         vapidConfiguration: VAPID.Configuration,
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
-        logger: Logger? = .defaultWebPushPrintLogger,
+        backgroundActivityLogger: Logger? = .defaultWebPushPrintLogger,
         eventLoopGroupProvider: NIOEventLoopGroupProvider = .shared(.singletonMultiThreadedEventLoopGroup)
     ) {
-        let logger = logger ?? .defaultWebPushNoOpLogger
+        let backgroundActivityLogger = backgroundActivityLogger ?? .defaultWebPushNoOpLogger
         
         var httpClientConfiguration = HTTPClient.Configuration()
         httpClientConfiguration.httpVersion = .automatic
@@ -75,18 +75,18 @@ public actor WebPushManager: Sendable {
             .httpClient(HTTPClient(
                 eventLoopGroupProvider: .shared(eventLoopGroup),
                 configuration: httpClientConfiguration,
-                backgroundActivityLogger: logger
+                backgroundActivityLogger: backgroundActivityLogger
             ))
         case .createNew:
             .httpClient(HTTPClient(
                 configuration: httpClientConfiguration,
-                backgroundActivityLogger: logger
+                backgroundActivityLogger: backgroundActivityLogger
             ))
         }
         
         self.init(
             vapidConfiguration: vapidConfiguration,
-            logger: logger,
+            backgroundActivityLogger: backgroundActivityLogger,
             executor: executor
         )
     }
@@ -96,21 +96,21 @@ public actor WebPushManager: Sendable {
     /// Note that this must be called before ``run()`` is called or the client's syncShutdown won't be called.
     /// - Parameters:
     ///   - vapidConfiguration: The VAPID configuration to use when identifying the application server.
-    ///   - logger: The logger to use for status updates.
+    ///   - backgroundActivityLogger: The logger to use for misconfiguration and background activity.
     ///   - executor: The executor to use when sending push messages.
     package init(
         vapidConfiguration: VAPID.Configuration,
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
-        logger: Logger,
+        backgroundActivityLogger: Logger,
         executor: Executor
     ) {
         if vapidConfiguration.validityDuration > vapidConfiguration.expirationDuration {
             assertionFailure("The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring.")
-            logger.error("The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring. Run your application server with the same configuration in debug mode to catch this.")
+            backgroundActivityLogger.error("The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring. Run your application server with the same configuration in debug mode to catch this.")
         }
         if vapidConfiguration.expirationDuration > .hours(24) {
             assertionFailure("The expiration duration must be less than 24 hours or else push endpoints will reject messages sent to them.")
-            logger.error("The expiration duration must be less than 24 hours or else push endpoints will reject messages sent to them. Run your application server with the same configuration in debug mode to catch this.")
+            backgroundActivityLogger.error("The expiration duration must be less than 24 hours or else push endpoints will reject messages sent to them. Run your application server with the same configuration in debug mode to catch this.")
         }
         precondition(!vapidConfiguration.keys.isEmpty, "VAPID.Configuration must have keys specified. Please report this as a bug with reproduction steps if encountered: https://github.com/mochidev/swift-webpush/issues.")
         
@@ -120,7 +120,7 @@ public actor WebPushManager: Sendable {
             allKeys.map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        self.logger = logger
+        self.backgroundActivityLogger = backgroundActivityLogger
         self.executor = executor
     }
     
@@ -354,7 +354,7 @@ public actor WebPushManager: Sendable {
     ) async throws {
         guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID]
         else {
-            logger.warning("A key was not found for this subscriber.", metadata: [
+            backgroundActivityLogger.warning("A key was not found for this subscriber.", metadata: [
                 "vapidKeyID": "\(subscriber.vapidKeyID)"
             ])
             throw VAPID.ConfigurationError.matchingKeyNotFound
@@ -374,7 +374,7 @@ public actor WebPushManager: Sendable {
         for index in salt.indices { salt[index] = .random(in: .min ... .max) }
         
         if message.count > Self.maximumMessageSize {
-            logger.warning("Push message is longer than the maximum guarantee made by the spec: \(Self.maximumMessageSize) bytes. Sending this message may fail, and its size will be leaked despite being encrypted. Please consider sending less data to keep your communications secure.", metadata: ["message": "\(message)"])
+            backgroundActivityLogger.warning("Push message is longer than the maximum guarantee made by the spec: \(Self.maximumMessageSize) bytes. Sending this message may fail, and its size will be leaked despite being encrypted. Please consider sending less data to keep your communications secure.", metadata: ["message": "\(message)"])
         }
         
         /// Prepare the payload by padding it so the final message is 4KB.
@@ -424,9 +424,9 @@ public actor WebPushManager: Sendable {
         let requestContent = contentCodingHeader + encryptedRecord.ciphertext + encryptedRecord.tag
         
         if expiration < Expiration.dropIfUndeliverable {
-            logger.error("The message expiration must be greater than or equal to \(Expiration.dropIfUndeliverable) seconds.", metadata: ["expiration": "\(expiration)"])
+            backgroundActivityLogger.error("The message expiration must be greater than or equal to \(Expiration.dropIfUndeliverable) seconds.", metadata: ["expiration": "\(expiration)"])
         } else if expiration > Expiration.recommendedMaximum {
-            logger.warning("The message expiration should be less than \(Expiration.recommendedMaximum) seconds.", metadata: ["expiration": "\(expiration)"])
+            backgroundActivityLogger.warning("The message expiration should be less than \(Expiration.recommendedMaximum) seconds.", metadata: ["expiration": "\(expiration)"])
         }
         
         /// Add the VAPID authorization and corrent content encoding and type.
@@ -440,7 +440,7 @@ public actor WebPushManager: Sendable {
         request.body = .bytes(ByteBuffer(bytes: requestContent))
         
         /// Send the request to the push endpoint.
-        let response = try await httpClient.execute(request, deadline: .distantFuture, logger: logger)
+        let response = try await httpClient.execute(request, deadline: .distantFuture, logger: backgroundActivityLogger)
         
         /// Check the response and determine if the subscription should be removed from our records, or if the notification should just be skipped.
         switch response.status {
@@ -450,28 +450,28 @@ public actor WebPushManager: Sendable {
         // TODO: 429 too many requests, 500 internal server error, 503 server shutting down - check config and perform a retry after a delay?
         default: throw HTTPError(response: response)
         }
-        logger.trace("Sent \(message) notification to \(subscriber): \(response)")
+        backgroundActivityLogger.trace("Sent \(message) notification to \(subscriber): \(response)")
     }
 }
 
 extension WebPushManager: Service {
     public func run() async throws {
-        logger.debug("Starting up WebPushManager")
+        backgroundActivityLogger.debug("Starting up WebPushManager")
         guard !didShutdown else {
             assertionFailure("The manager was already shutdown and cannot be started.")
-            logger.error("The manager was already shutdown and cannot be started. Run your application server in debug mode to catch this.")
+            backgroundActivityLogger.error("The manager was already shutdown and cannot be started. Run your application server in debug mode to catch this.")
             return
         }
         try await withTaskCancellationOrGracefulShutdownHandler {
             try await gracefulShutdown()
-        } onCancelOrGracefulShutdown: { [logger, executor] in
-            logger.debug("Shutting down WebPushManager")
+        } onCancelOrGracefulShutdown: { [backgroundActivityLogger, executor] in
+            backgroundActivityLogger.debug("Shutting down WebPushManager")
             do {
                 if case let .httpClient(httpClient) = executor {
                     try httpClient.syncShutdown()
                 }
             } catch {
-                logger.error("Graceful Shutdown Failed", metadata: [
+                backgroundActivityLogger.error("Graceful Shutdown Failed", metadata: [
                     "error": "\(error)"
                 ])
             }
