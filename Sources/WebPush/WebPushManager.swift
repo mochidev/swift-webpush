@@ -104,6 +104,16 @@ public actor WebPushManager: Sendable {
         backgroundActivityLogger: Logger,
         executor: Executor
     ) {
+        var backgroundActivityLogger = backgroundActivityLogger
+        backgroundActivityLogger[metadataKey: "vapidConfiguration"] = [
+            "contactInformation" : "\(vapidConfiguration.contactInformation)",
+            "primaryKey" : "\(vapidConfiguration.primaryKey?.id.description ?? "nil")",
+            "keys" : .array(vapidConfiguration.keys.map { .string($0.id.description) }),
+            "deprecatedKeys" : .array((vapidConfiguration.deprecatedKeys ?? []).map { .string($0.id.description) }),
+            "validityDuration" : "\(vapidConfiguration.validityDuration)",
+            "expirationDuration" : "\(vapidConfiguration.expirationDuration)",
+        ]
+        
         if vapidConfiguration.validityDuration > vapidConfiguration.expirationDuration {
             assertionFailure("The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring.")
             backgroundActivityLogger.error("The validity duration must be earlier than the expiration duration since it represents when the VAPID Authorization token will be refreshed ahead of it expiring. Run your application server with the same configuration in debug mode to catch this.")
@@ -251,13 +261,15 @@ public actor WebPushManager: Sendable {
     ) async throws {
         switch executor {
         case .httpClient(let httpClient):
+            var logger = logger ?? backgroundActivityLogger
+            logger[metadataKey: "message"] = "\(message)"
             try await execute(
                 httpClient: httpClient,
                 data: message,
                 subscriber: subscriber,
                 expiration: expiration,
                 urgency: urgency,
-                logger: logger ?? backgroundActivityLogger
+                logger: logger
             )
         case .handler(let handler):
             try await handler(.data(Data(message)), Subscriber(subscriber), expiration, urgency)
@@ -330,6 +342,8 @@ public actor WebPushManager: Sendable {
         urgency: Urgency,
         logger: Logger
     ) async throws {
+        var logger = logger
+        logger[metadataKey: "message"] = "\(message)"
         switch executor {
         case .httpClient(let httpClient):
             try await execute(
@@ -366,11 +380,19 @@ public actor WebPushManager: Sendable {
         urgency: Urgency,
         logger: Logger
     ) async throws {
-        guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID]
-        else {
-            logger.warning("A key was not found for this subscriber.", metadata: [
-                "vapidKeyID": "\(subscriber.vapidKeyID)"
-            ])
+        var logger = logger
+        logger[metadataKey: "subscriber"] = [
+            "vapidKeyID" : "\(subscriber.vapidKeyID)",
+            "endpoint" : "\(subscriber.endpoint)",
+        ]
+        logger[metadataKey: "expiration"] = "\(expiration)"
+        logger[metadataKey: "urgency"] = "\(urgency)"
+        logger[metadataKey: "origin"] = "\(subscriber.endpoint.origin)"
+        logger[metadataKey: "messageSize"] = "\(message.count)"
+        logger.trace("Sending notification")
+        
+        guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID] else {
+            logger.warning("A key was not found for this subscriber.")
             throw VAPID.ConfigurationError.matchingKeyNotFound
         }
         
@@ -380,15 +402,20 @@ public actor WebPushManager: Sendable {
         
         /// Perform key exchange between the user agent's public key and our private key, deriving a shared secret.
         let userAgent = subscriber.userAgentKeyMaterial
-        guard let sharedSecret = try? applicationServerECDHPrivateKey.sharedSecretFromKeyAgreement(with: userAgent.publicKey)
-        else { throw BadSubscriberError() }
+        let sharedSecret: SharedSecret
+        do {
+            sharedSecret = try applicationServerECDHPrivateKey.sharedSecretFromKeyAgreement(with: userAgent.publicKey)
+        } catch {
+            logger.debug("A shared secret could not be derived from the subscriber's public key and the newly-generated private key.", metadata: ["error" : "\(error)"])
+            throw BadSubscriberError()
+        }
         
         /// Generate a 16-byte salt.
         var salt: [UInt8] = Array(repeating: 0, count: 16)
         for index in salt.indices { salt[index] = .random(in: .min ... .max) }
         
         if message.count > Self.maximumMessageSize {
-            logger.warning("Push message is longer than the maximum guarantee made by the spec: \(Self.maximumMessageSize) bytes. Sending this message may fail, and its size will be leaked despite being encrypted. Please consider sending less data to keep your communications secure.", metadata: ["message": "\(message)"])
+            logger.warning("Push message is longer than the maximum guarantee made by the spec: \(Self.maximumMessageSize) bytes. Sending this message may fail, and its size will be leaked despite being encrypted. Please consider sending less data to keep your communications secure.")
         }
         
         /// Prepare the payload by padding it so the final message is 4KB.
@@ -438,9 +465,9 @@ public actor WebPushManager: Sendable {
         let requestContent = contentCodingHeader + encryptedRecord.ciphertext + encryptedRecord.tag
         
         if expiration < Expiration.dropIfUndeliverable {
-            logger.error("The message expiration must be greater than or equal to \(Expiration.dropIfUndeliverable) seconds.", metadata: ["expiration": "\(expiration)"])
+            logger.error("The message expiration must be greater than or equal to \(Expiration.dropIfUndeliverable) seconds.")
         } else if expiration > Expiration.recommendedMaximum {
-            logger.warning("The message expiration should be less than \(Expiration.recommendedMaximum) seconds.", metadata: ["expiration": "\(expiration)"])
+            logger.warning("The message expiration should be less than \(Expiration.recommendedMaximum) seconds.")
         }
         
         /// Add the VAPID authorization and corrent content encoding and type.
@@ -455,6 +482,9 @@ public actor WebPushManager: Sendable {
         
         /// Send the request to the push endpoint.
         let response = try await httpClient.execute(request, deadline: .distantFuture, logger: logger)
+        logger[metadataKey: "response"] = "\(response)"
+        logger[metadataKey: "statusCode"] = "\(response.status)"
+        logger.trace("Sent notification")
         
         /// Check the response and determine if the subscription should be removed from our records, or if the notification should just be skipped.
         switch response.status {
@@ -464,7 +494,7 @@ public actor WebPushManager: Sendable {
         // TODO: 429 too many requests, 500 internal server error, 503 server shutting down - check config and perform a retry after a delay?
         default: throw HTTPError(response: response)
         }
-        logger.trace("Sent \(message) notification to \(subscriber): \(response)")
+        logger.trace("Successfully sent notification")
     }
 }
 
@@ -645,7 +675,7 @@ extension WebPushManager.Urgency: Codable {
 
 extension WebPushManager {
     /// An internal type representing a push message, accessible when using ``/WebPushTesting``.
-    public enum _Message: Sendable {
+    public enum _Message: Sendable, CustomStringConvertible {
         /// A message originally sent via ``WebPushManager/send(data:to:expiration:urgency:)``
         case data(Data)
         
@@ -668,6 +698,17 @@ extension WebPushManager {
                     encoder.dateEncodingStrategy = .millisecondsSince1970
                     return try encoder.encode(json)
                 }
+            }
+        }
+        
+        public var description: String {
+            switch self {
+            case .data(let data):
+                return ".data(\(data.base64URLEncodedString()))"
+            case .string(let string):
+                return ".string(\(string))"
+            case .json(let json):
+                return ".json(\(json))"
             }
         }
     }
