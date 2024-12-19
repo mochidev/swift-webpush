@@ -36,7 +36,7 @@ public actor WebPushManager: Sendable {
     /// This is currently set to 3,993 plaintext bytes. See the discussion for ``maximumEncryptedPayloadSize`` for more information.
     public static let maximumMessageSize = maximumEncryptedPayloadSize - 103
     
-    /// The internal logger to use when reporting status.
+    /// The internal logger to use when reporting misconfiguration and background activity.
     nonisolated let logger: Logger
     
     /// The internal executor to use when delivering messages.
@@ -57,15 +57,15 @@ public actor WebPushManager: Sendable {
     /// - Note: On debug builds, this initializer will assert if VAPID authorization header expiration times are inconsistently set.
     /// - Parameters:
     ///   - vapidConfiguration: The VAPID configuration to use when identifying the application server.
-    ///   - logger: An optional parent logger to use for status updates.
+    ///   - logger: The logger to use for misconfiguration and background activity. By default, a print logger will be used, and if set to `nil`, a no-op logger will be used in release builds. When running in a server environment, your shared logger should be used instead giving you full control of logging.
     ///   - eventLoopGroupProvider: The event loop to use for the internal HTTP client.
     public init(
         vapidConfiguration: VAPID.Configuration,
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
-        logger: Logger? = nil,
+        logger: Logger? = .defaultWebPushPrintLogger,
         eventLoopGroupProvider: NIOEventLoopGroupProvider = .shared(.singletonMultiThreadedEventLoopGroup)
     ) {
-        let logger = Logger(label: "WebPushManager", factory: { logger?.handler ?? PrintLogHandler(label: $0, metadataProvider: $1) })
+        let logger = logger ?? .defaultWebPushNoOpLogger
         
         var httpClientConfiguration = HTTPClient.Configuration()
         httpClientConfiguration.httpVersion = .automatic
@@ -675,4 +675,16 @@ extension WebPushManager {
             _ urgency: Urgency
         ) async throws -> Void)
     }
+}
+
+extension Logger {
+    /// A logger that will print logs by default.
+    ///
+    /// This is used by ``WebPushManager/init(vapidConfiguration:logger:eventLoopGroupProvider:)`` to provide a default logger when one is not provided.
+    public static let defaultWebPushPrintLogger = Logger(label: "WebPushManager", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
+    
+    /// A logger that will not print anything by default.
+    ///
+    /// This is used by ``WebPushManager/init(vapidConfiguration:logger:eventLoopGroupProvider:)`` to provide a default logger when nil is specified.
+    public static let defaultWebPushNoOpLogger = Logger(label: "WebPushManager", factory: { _, _ in SwiftLogNoOpLogHandler() })
 }
