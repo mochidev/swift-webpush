@@ -456,7 +456,7 @@ public actor WebPushManager: Sendable {
 
 extension WebPushManager: Service {
     public func run() async throws {
-        logger.info("Starting up WebPushManager")
+        logger.debug("Starting up WebPushManager")
         guard !didShutdown else {
             assertionFailure("The manager was already shutdown and cannot be started.")
             logger.error("The manager was already shutdown and cannot be started. Run your application server in debug mode to catch this.")
@@ -465,7 +465,7 @@ extension WebPushManager: Service {
         try await withTaskCancellationOrGracefulShutdownHandler {
             try await gracefulShutdown()
         } onCancelOrGracefulShutdown: { [logger, executor] in
-            logger.info("Shutting down WebPushManager")
+            logger.debug("Shutting down WebPushManager")
             do {
                 if case let .httpClient(httpClient) = executor {
                     try httpClient.syncShutdown()
