@@ -57,7 +57,7 @@ public actor WebPushManager: Sendable {
     /// - Note: On debug builds, this initializer will assert if VAPID authorization header expiration times are inconsistently set.
     /// - Parameters:
     ///   - vapidConfiguration: The VAPID configuration to use when identifying the application server.
-    ///   - backgroundActivityLogger: The logger to use for misconfiguration and background activity. By default, a print logger will be used, and if set to `nil`, a no-op logger will be used in release builds. When running in a server environment, your shared logger should be used instead giving you full control of logging.
+    ///   - backgroundActivityLogger: The logger to use for misconfiguration and background activity. By default, a print logger will be used, and if set to `nil`, a no-op logger will be used in release builds. When running in a server environment, your shared logger should be used instead giving you full control of logging and metadata.
     ///   - eventLoopGroupProvider: The event loop to use for the internal HTTP client.
     public init(
         vapidConfiguration: VAPID.Configuration,
@@ -241,11 +241,13 @@ public actor WebPushManager: Sendable {
     ///   - subscriber: The subscriber to send the push message to.
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
+    ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
     public func send(
         data message: some DataProtocol,
         to subscriber: some SubscriberProtocol,
         expiration: Expiration = .recommendedMaximum,
-        urgency: Urgency = .high
+        urgency: Urgency = .high,
+        logger: Logger? = nil
     ) async throws {
         switch executor {
         case .httpClient(let httpClient):
@@ -254,7 +256,8 @@ public actor WebPushManager: Sendable {
                 data: message,
                 subscriber: subscriber,
                 expiration: expiration,
-                urgency: urgency
+                urgency: urgency,
+                logger: logger ?? backgroundActivityLogger
             )
         case .handler(let handler):
             try await handler(.data(Data(message)), Subscriber(subscriber), expiration, urgency)
@@ -270,17 +273,20 @@ public actor WebPushManager: Sendable {
     ///   - subscriber: The subscriber to send the push message to.
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
+    ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
     public func send(
         string message: some StringProtocol,
         to subscriber: some SubscriberProtocol,
         expiration: Expiration = .recommendedMaximum,
-        urgency: Urgency = .high
+        urgency: Urgency = .high,
+        logger: Logger? = nil
     ) async throws {
         try await routeMessage(
             message: .string(String(message)),
             to: subscriber,
             expiration: expiration,
-            urgency: urgency
+            urgency: urgency,
+            logger: logger ?? backgroundActivityLogger
         )
     }
     
@@ -293,17 +299,20 @@ public actor WebPushManager: Sendable {
     ///   - subscriber: The subscriber to send the push message to.
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
+    ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
     public func send(
         json message: some Encodable&Sendable,
         to subscriber: some SubscriberProtocol,
         expiration: Expiration = .recommendedMaximum,
-        urgency: Urgency = .high
+        urgency: Urgency = .high,
+        logger: Logger? = nil
     ) async throws {
         try await routeMessage(
             message: .json(message),
             to: subscriber,
             expiration: expiration,
-            urgency: urgency
+            urgency: urgency,
+            logger: logger ?? backgroundActivityLogger
         )
     }
     
@@ -313,11 +322,13 @@ public actor WebPushManager: Sendable {
     ///   - subscriber: The subscriber to sign the message against.
     ///   - expiration: The expiration of the message.
     ///   - urgency: The urgency of the message.
+    ///   - logger: The logger to use for status updates.
     func routeMessage(
         message: _Message,
         to subscriber: some SubscriberProtocol,
         expiration: Expiration,
-        urgency: Urgency
+        urgency: Urgency,
+        logger: Logger
     ) async throws {
         switch executor {
         case .httpClient(let httpClient):
@@ -326,7 +337,8 @@ public actor WebPushManager: Sendable {
                 data: message.data,
                 subscriber: subscriber,
                 expiration: expiration,
-                urgency: urgency
+                urgency: urgency,
+                logger: logger
             )
         case .handler(let handler):
             try await handler(
@@ -345,16 +357,18 @@ public actor WebPushManager: Sendable {
     ///   - subscriber: The subscriber to sign the message against.
     ///   - expiration: The expiration of the message.
     ///   - urgency: The urgency of the message.
+    ///   - logger: The logger to use for status updates.
     func execute(
         httpClient: some HTTPClientProtocol,
         data message: some DataProtocol,
         subscriber: some SubscriberProtocol,
         expiration: Expiration,
-        urgency: Urgency
+        urgency: Urgency,
+        logger: Logger
     ) async throws {
         guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID]
         else {
-            backgroundActivityLogger.warning("A key was not found for this subscriber.", metadata: [
+            logger.warning("A key was not found for this subscriber.", metadata: [
                 "vapidKeyID": "\(subscriber.vapidKeyID)"
             ])
             throw VAPID.ConfigurationError.matchingKeyNotFound
@@ -374,7 +388,7 @@ public actor WebPushManager: Sendable {
         for index in salt.indices { salt[index] = .random(in: .min ... .max) }
         
         if message.count > Self.maximumMessageSize {
-            backgroundActivityLogger.warning("Push message is longer than the maximum guarantee made by the spec: \(Self.maximumMessageSize) bytes. Sending this message may fail, and its size will be leaked despite being encrypted. Please consider sending less data to keep your communications secure.", metadata: ["message": "\(message)"])
+            logger.warning("Push message is longer than the maximum guarantee made by the spec: \(Self.maximumMessageSize) bytes. Sending this message may fail, and its size will be leaked despite being encrypted. Please consider sending less data to keep your communications secure.", metadata: ["message": "\(message)"])
         }
         
         /// Prepare the payload by padding it so the final message is 4KB.
@@ -424,9 +438,9 @@ public actor WebPushManager: Sendable {
         let requestContent = contentCodingHeader + encryptedRecord.ciphertext + encryptedRecord.tag
         
         if expiration < Expiration.dropIfUndeliverable {
-            backgroundActivityLogger.error("The message expiration must be greater than or equal to \(Expiration.dropIfUndeliverable) seconds.", metadata: ["expiration": "\(expiration)"])
+            logger.error("The message expiration must be greater than or equal to \(Expiration.dropIfUndeliverable) seconds.", metadata: ["expiration": "\(expiration)"])
         } else if expiration > Expiration.recommendedMaximum {
-            backgroundActivityLogger.warning("The message expiration should be less than \(Expiration.recommendedMaximum) seconds.", metadata: ["expiration": "\(expiration)"])
+            logger.warning("The message expiration should be less than \(Expiration.recommendedMaximum) seconds.", metadata: ["expiration": "\(expiration)"])
         }
         
         /// Add the VAPID authorization and corrent content encoding and type.
@@ -440,7 +454,7 @@ public actor WebPushManager: Sendable {
         request.body = .bytes(ByteBuffer(bytes: requestContent))
         
         /// Send the request to the push endpoint.
-        let response = try await httpClient.execute(request, deadline: .distantFuture, logger: backgroundActivityLogger)
+        let response = try await httpClient.execute(request, deadline: .distantFuture, logger: logger)
         
         /// Check the response and determine if the subscription should be removed from our records, or if the notification should just be skipped.
         switch response.status {
@@ -450,7 +464,7 @@ public actor WebPushManager: Sendable {
         // TODO: 429 too many requests, 500 internal server error, 503 server shutting down - check config and perform a retry after a delay?
         default: throw HTTPError(response: response)
         }
-        backgroundActivityLogger.trace("Sent \(message) notification to \(subscriber): \(response)")
+        logger.trace("Sent \(message) notification to \(subscriber): \(response)")
     }
 }
 
