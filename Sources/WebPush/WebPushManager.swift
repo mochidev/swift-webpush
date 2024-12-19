@@ -651,7 +651,7 @@ extension WebPushManager {
         
         /// A message originally sent via ``WebPushManager/send(string:to:expiration:urgency:)``
         case string(String)
-        /// A message originally sent via ``WebPushManager/send(json:to:expiration:urgency:)
+        /// A message originally sent via ``WebPushManager/send(json:to:expiration:urgency:)``
         case json(any Encodable&Sendable)
         
         /// The message, encoded as data.
