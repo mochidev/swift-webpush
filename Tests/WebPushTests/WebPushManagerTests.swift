@@ -161,14 +161,16 @@ struct WebPushManagerTests {
         func decrypt(
             request: HTTPClientRequest,
             userAgentPrivateKey: P256.KeyAgreement.PrivateKey,
-            userAgentKeyMaterial: UserAgentKeyMaterial
+            userAgentKeyMaterial: UserAgentKeyMaterial,
+            expectedReadableBytes: Int = 4096,
+            expectedRecordSize: Int = 4010
         ) async throws -> [UInt8] {
             var body = try #require(try await request.body?.collect(upTo: 16*1024))
-            #expect(body.readableBytes == 4096)
+            #expect(body.readableBytes == expectedReadableBytes)
             
             let salt = body.readBytes(length: 16)
             let recordSize = body.readInteger(as: UInt32.self)
-            #expect(try #require(recordSize) == 4010)
+            #expect(try #require(recordSize) == expectedRecordSize)
             let keyIDSize = body.readInteger(as: UInt8.self)
             let keyID = body.readBytes(length: Int(keyIDSize ?? 0))
             
@@ -342,8 +344,74 @@ struct WebPushManagerTests {
             }
         }
         
-        @Test func sendMessageToNotFoundPushServerError() async throws {
-            await confirmation { requestWasMade in
+        @Test func sendMessageToSubscriberWithInvalidVAPIDKey() async throws {
+            await confirmation(expectedCount: 0) { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
+                
+                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
+                    vapidKeyID: .mockedKeyID2
+                )
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(MockHTTPClient({ request in
+                        requestWasMade()
+                        return HTTPClientResponse(status: .created)
+                    }))
+                )
+                
+                await #expect(throws: VAPID.ConfigurationError.matchingKeyNotFound) {
+                    try await manager.send(string: "hello", to: subscriber)
+                }
+            }
+        }
+        
+        @Test(.disabled("Fails because we need a public/private key pair that fails to make a shared secret"))
+        func sendMessageToSubscriberWithInvalidUserAgentKey() async throws {
+            try await confirmation(expectedCount: 0) { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
+                
+                let privateKey = try P256.KeyAgreement.PrivateKey(rawRepresentation: Data(base64Encoded: "fkqlT3FL8B34XFAmm+o6hnIfhK/nT3tB6lirzzR06I0=")!)
+                let publicKey = try P256.KeyAgreement.PublicKey(compressedRepresentation: Data(base64Encoded: "Ahj5uud0fNhE6YUlt8zQ2vbh0gqBiyF1qakeTq5TQ7yY")!)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(
+                        publicKey: publicKey,
+                        authenticationSecret: Data(authenticationSecret)
+                    ),
+                    vapidKeyID: .mockedKeyID1
+                )
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(
+                        MockHTTPClient({ request in
+                            requestWasMade()
+                            return HTTPClientResponse(status: .created)
+                        }),
+                        privateKey
+                    )
+                )
+                
+                await #expect(throws: BadSubscriberError()) {
+                    try await manager.send(string: "hello", to: subscriber)
+                }
+            }
+        }
+        
+        @Test func sendSizeLimitMessageSucceeds() async throws {
+            try await confirmation { requestWasMade in
                 let vapidConfiguration = VAPID.Configuration.makeTesting()
                 
                 let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
@@ -354,6 +422,104 @@ struct WebPushManagerTests {
                     endpoint: URL(string: "https://example.com/subscriber")!,
                     userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
                     vapidKeyID: vapidConfiguration.primaryKey!.id
+                )
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(MockHTTPClient({ request in
+                        try validateAuthotizationHeader(
+                            request: request,
+                            vapidConfiguration: vapidConfiguration,
+                            origin: "https://example.com"
+                        )
+                        #expect(request.method == .POST)
+                        #expect(request.headers["Content-Encoding"] == ["aes128gcm"])
+                        #expect(request.headers["Content-Type"] == ["application/octet-stream"])
+                        #expect(request.headers["TTL"] == ["2592000"])
+                        #expect(request.headers["Urgency"] == ["high"])
+                        #expect(request.headers["Topic"] == []) // TODO: Update when topic is added
+                        
+                        let message = try await decrypt(
+                            request: request,
+                            userAgentPrivateKey: subscriberPrivateKey,
+                            userAgentKeyMaterial: subscriber.userAgentKeyMaterial,
+                            expectedReadableBytes: 4096,
+                            expectedRecordSize: 4010
+                        )
+                        
+                        #expect(message == Array(repeating: 0, count: 3993))
+                        
+                        requestWasMade()
+                        return HTTPClientResponse(status: .created)
+                    }))
+                )
+                
+                try await manager.send(data: Array(repeating: 0, count: 3993), to: subscriber)
+            }
+        }
+        
+        @Test func sendExtraLargeMessageCouldSucceed() async throws {
+            try await confirmation { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.makeTesting()
+                
+                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
+                    vapidKeyID: vapidConfiguration.primaryKey!.id
+                )
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(MockHTTPClient({ request in
+                        try validateAuthotizationHeader(
+                            request: request,
+                            vapidConfiguration: vapidConfiguration,
+                            origin: "https://example.com"
+                        )
+                        #expect(request.method == .POST)
+                        #expect(request.headers["Content-Encoding"] == ["aes128gcm"])
+                        #expect(request.headers["Content-Type"] == ["application/octet-stream"])
+                        #expect(request.headers["TTL"] == ["2592000"])
+                        #expect(request.headers["Urgency"] == ["high"])
+                        #expect(request.headers["Topic"] == []) // TODO: Update when topic is added
+                        
+                        let message = try await decrypt(
+                            request: request,
+                            userAgentPrivateKey: subscriberPrivateKey,
+                            userAgentKeyMaterial: subscriber.userAgentKeyMaterial,
+                            expectedReadableBytes: 4097,
+                            expectedRecordSize: 4011
+                        )
+                        
+                        #expect(message == Array(repeating: 0, count: 3994))
+                        
+                        requestWasMade()
+                        return HTTPClientResponse(status: .created)
+                    }))
+                )
+                
+                try await manager.send(data: Array(repeating: 0, count: 3994), to: subscriber)
+            }
+        }
+        
+        @Test func sendMessageToNotFoundPushServerError() async throws {
+            await confirmation { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
+                
+                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
+                    vapidKeyID: .mockedKeyID1
                 )
                 
                 let manager = WebPushManager(
@@ -373,7 +539,7 @@ struct WebPushManagerTests {
         
         @Test func sendMessageToGonePushServerError() async throws {
             await confirmation { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.makeTesting()
+                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
                 
                 let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
                 var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
@@ -382,7 +548,7 @@ struct WebPushManagerTests {
                 let subscriber = Subscriber(
                     endpoint: URL(string: "https://example.com/subscriber")!,
                     userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
-                    vapidKeyID: vapidConfiguration.primaryKey!.id
+                    vapidKeyID: .mockedKeyID1
                 )
                 
                 let manager = WebPushManager(
@@ -402,7 +568,7 @@ struct WebPushManagerTests {
         
         @Test func sendMessageToUnknownPushServerError() async throws {
             await confirmation { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.makeTesting()
+                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
                 
                 let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
                 var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
@@ -411,7 +577,7 @@ struct WebPushManagerTests {
                 let subscriber = Subscriber(
                     endpoint: URL(string: "https://example.com/subscriber")!,
                     userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
-                    vapidKeyID: vapidConfiguration.primaryKey!.id
+                    vapidKeyID: .mockedKeyID1
                 )
                 
                 let manager = WebPushManager(
