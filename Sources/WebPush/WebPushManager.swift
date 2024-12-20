@@ -494,7 +494,9 @@ public actor WebPushManager: Sendable {
         switch response.status {
         case .created: break
         case .notFound, .gone: throw BadSubscriberError()
-        // TODO: 413 payload too large - log.error and throw error
+        case .payloadTooLarge:
+            logger.error("The encrypted payload was too large and was rejected by the push service.")
+            throw MessageTooLargeError()
         // TODO: 429 too many requests, 500 internal server error, 503 server shutting down - check config and perform a retry after a delay?
         default: throw HTTPError(response: response)
         }
