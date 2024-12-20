@@ -482,4 +482,44 @@ struct WebPushManagerTests {
             #expect(try JSONDecoder().decode(WebPushManager.Expiration.self, from: Data("60".utf8)) == .minutes(1))
         }
     }
+    
+    @Suite struct Urgency {
+        @Test func comparison() {
+            #expect(WebPushManager.Urgency(rawValue: "invalid") < WebPushManager.Urgency.veryLow)
+            #expect(WebPushManager.Urgency(rawValue: "invalid") < WebPushManager.Urgency.low)
+            #expect(WebPushManager.Urgency(rawValue: "invalid") < WebPushManager.Urgency.normal)
+            #expect(WebPushManager.Urgency(rawValue: "invalid") < WebPushManager.Urgency.high)
+            
+            #expect(WebPushManager.Urgency.veryLow < WebPushManager.Urgency.low)
+            #expect(WebPushManager.Urgency.veryLow < WebPushManager.Urgency.normal)
+            #expect(WebPushManager.Urgency.veryLow < WebPushManager.Urgency.high)
+            
+            #expect(WebPushManager.Urgency.low < WebPushManager.Urgency.normal)
+            #expect(WebPushManager.Urgency.low < WebPushManager.Urgency.high)
+            
+            #expect(WebPushManager.Urgency.normal < WebPushManager.Urgency.high)
+        }
+        
+        @Test func stringEncoding() {
+            #expect("\(WebPushManager.Urgency(rawValue: "future-value"))" == "future-value")
+            #expect("\(WebPushManager.Urgency.veryLow)" == "very-low")
+            #expect("\(WebPushManager.Urgency.low)" == "low")
+            #expect("\(WebPushManager.Urgency.normal)" == "normal")
+            #expect("\(WebPushManager.Urgency.high)" == "high")
+        }
+        
+        @Test func coding() throws {
+            #expect(String(decoding: try JSONEncoder().encode(WebPushManager.Urgency(rawValue: "future-value")), as: UTF8.self) == "\"future-value\"")
+            #expect(String(decoding: try JSONEncoder().encode(WebPushManager.Urgency.veryLow), as: UTF8.self) == "\"very-low\"")
+            #expect(String(decoding: try JSONEncoder().encode(WebPushManager.Urgency.low), as: UTF8.self) == "\"low\"")
+            #expect(String(decoding: try JSONEncoder().encode(WebPushManager.Urgency.normal), as: UTF8.self) == "\"normal\"")
+            #expect(String(decoding: try JSONEncoder().encode(WebPushManager.Urgency.high), as: UTF8.self) == "\"high\"")
+            
+            #expect(try JSONDecoder().decode(WebPushManager.Urgency.self, from: Data("\"future-value\"".utf8)) == .init(rawValue: "future-value"))
+            #expect(try JSONDecoder().decode(WebPushManager.Urgency.self, from: Data("\"very-low\"".utf8)) == .veryLow)
+            #expect(try JSONDecoder().decode(WebPushManager.Urgency.self, from: Data("\"low\"".utf8)) == .low)
+            #expect(try JSONDecoder().decode(WebPushManager.Urgency.self, from: Data("\"normal\"".utf8)) == .normal)
+            #expect(try JSONDecoder().decode(WebPushManager.Urgency.self, from: Data("\"high\"".utf8)) == .high)
+        }
+    }
 }
