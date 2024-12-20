@@ -13,7 +13,7 @@ import Logging
 import ServiceLifecycle
 import Testing
 @testable import WebPush
-import WebPushTesting
+@testable import WebPushTesting
 
 @Suite("WebPush Manager")
 struct WebPushManagerTests {
@@ -346,20 +346,11 @@ struct WebPushManagerTests {
         
         @Test func sendMessageToSubscriberWithInvalidVAPIDKey() async throws {
             await confirmation(expectedCount: 0) { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
-                
-                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
-                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
-                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
-                
-                let subscriber = Subscriber(
-                    endpoint: URL(string: "https://example.com/subscriber")!,
-                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
-                    vapidKeyID: .mockedKeyID2
-                )
+                var subscriber = Subscriber.mockedSubscriber
+                subscriber.vapidKeyID = .mockedKeyID2
                 
                 let manager = WebPushManager(
-                    vapidConfiguration: vapidConfiguration,
+                    vapidConfiguration: .mockedConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
@@ -412,25 +403,15 @@ struct WebPushManagerTests {
         
         @Test func sendSizeLimitMessageSucceeds() async throws {
             try await confirmation { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.makeTesting()
-                
-                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
-                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
-                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
-                
-                let subscriber = Subscriber(
-                    endpoint: URL(string: "https://example.com/subscriber")!,
-                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
-                    vapidKeyID: vapidConfiguration.primaryKey!.id
-                )
+                let (subscriber, subscriberPrivateKey) = Subscriber.makeMockedSubscriber()
                 
                 let manager = WebPushManager(
-                    vapidConfiguration: vapidConfiguration,
+                    vapidConfiguration: .mockedConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         try validateAuthotizationHeader(
                             request: request,
-                            vapidConfiguration: vapidConfiguration,
+                            vapidConfiguration: .mockedConfiguration,
                             origin: "https://example.com"
                         )
                         #expect(request.method == .POST)
@@ -461,25 +442,15 @@ struct WebPushManagerTests {
         
         @Test func sendExtraLargeMessageCouldSucceed() async throws {
             try await confirmation { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.makeTesting()
-                
-                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
-                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
-                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
-                
-                let subscriber = Subscriber(
-                    endpoint: URL(string: "https://example.com/subscriber")!,
-                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
-                    vapidKeyID: vapidConfiguration.primaryKey!.id
-                )
+                let (subscriber, subscriberPrivateKey) = Subscriber.makeMockedSubscriber()
                 
                 let manager = WebPushManager(
-                    vapidConfiguration: vapidConfiguration,
+                    vapidConfiguration: .mockedConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         try validateAuthotizationHeader(
                             request: request,
-                            vapidConfiguration: vapidConfiguration,
+                            vapidConfiguration: .mockedConfiguration,
                             origin: "https://example.com"
                         )
                         #expect(request.method == .POST)
@@ -510,20 +481,8 @@ struct WebPushManagerTests {
         
         @Test func sendExtraLargeMessageFails() async throws {
             await confirmation { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.makeTesting()
-                
-                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
-                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
-                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
-                
-                let subscriber = Subscriber(
-                    endpoint: URL(string: "https://example.com/subscriber")!,
-                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
-                    vapidKeyID: vapidConfiguration.primaryKey!.id
-                )
-                
                 let manager = WebPushManager(
-                    vapidConfiguration: vapidConfiguration,
+                    vapidConfiguration: .mockedConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
@@ -532,27 +491,15 @@ struct WebPushManagerTests {
                 )
                 
                 await #expect(throws: MessageTooLargeError()) {
-                    try await manager.send(data: Array(repeating: 0, count: 3994), to: subscriber)
+                    try await manager.send(data: Array(repeating: 0, count: 3994), to: .mockedSubscriber())
                 }
             }
         }
         
         @Test func sendMessageToNotFoundPushServerError() async throws {
             await confirmation { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
-                
-                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
-                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
-                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
-                
-                let subscriber = Subscriber(
-                    endpoint: URL(string: "https://example.com/subscriber")!,
-                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
-                    vapidKeyID: .mockedKeyID1
-                )
-                
                 let manager = WebPushManager(
-                    vapidConfiguration: vapidConfiguration,
+                    vapidConfiguration: .mockedConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
@@ -561,27 +508,15 @@ struct WebPushManagerTests {
                 )
                 
                 await #expect(throws: BadSubscriberError()) {
-                    try await manager.send(string: "hello", to: subscriber)
+                    try await manager.send(string: "hello", to: .mockedSubscriber())
                 }
             }
         }
         
         @Test func sendMessageToGonePushServerError() async throws {
             await confirmation { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
-                
-                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
-                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
-                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
-                
-                let subscriber = Subscriber(
-                    endpoint: URL(string: "https://example.com/subscriber")!,
-                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
-                    vapidKeyID: .mockedKeyID1
-                )
-                
                 let manager = WebPushManager(
-                    vapidConfiguration: vapidConfiguration,
+                    vapidConfiguration: .mockedConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
@@ -590,27 +525,15 @@ struct WebPushManagerTests {
                 )
                 
                 await #expect(throws: BadSubscriberError()) {
-                    try await manager.send(string: "hello", to: subscriber)
+                    try await manager.send(string: "hello", to: .mockedSubscriber())
                 }
             }
         }
         
         @Test func sendMessageToUnknownPushServerError() async throws {
             await confirmation { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
-                
-                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
-                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
-                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
-                
-                let subscriber = Subscriber(
-                    endpoint: URL(string: "https://example.com/subscriber")!,
-                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
-                    vapidKeyID: .mockedKeyID1
-                )
-                
                 let manager = WebPushManager(
-                    vapidConfiguration: vapidConfiguration,
+                    vapidConfiguration: .mockedConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
@@ -619,7 +542,70 @@ struct WebPushManagerTests {
                 )
                 
                 await #expect(throws: HTTPError.self) {
-                    try await manager.send(string: "hello", to: subscriber)
+                    try await manager.send(string: "hello", to: .mockedSubscriber())
+                }
+            }
+        }
+    }
+    
+    @Suite("Sending Mocked Messages")
+    struct SendingMockedMessages {
+        @Test func sendSuccessfulTextMessage() async throws {
+            try await confirmation { requestWasMade in
+                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, expiration, urgency in
+                    #expect(message.string == "hello")
+                    #expect(subscriber.endpoint.absoluteString == "https://example.com/subscriber")
+                    #expect(subscriber.vapidKeyID == .mockedKeyID1)
+                    #expect(expiration == .recommendedMaximum)
+                    #expect(urgency == .high)
+                    requestWasMade()
+                }
+                
+                try await manager.send(string: "hello", to: .mockedSubscriber())
+            }
+        }
+        
+        @Test func sendSuccessfulDataMessage() async throws {
+            try await confirmation { requestWasMade in
+                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, expiration, urgency in
+                    try #expect(message.data == Data("hello".utf8Bytes))
+                    #expect(subscriber.endpoint.absoluteString == "https://example.com/subscriber")
+                    #expect(subscriber.vapidKeyID == .mockedKeyID1)
+                    #expect(expiration == .recommendedMaximum)
+                    #expect(urgency == .high)
+                    requestWasMade()
+                }
+                
+                try await manager.send(data: "hello".utf8Bytes, to: .mockedSubscriber())
+            }
+        }
+        
+        @Test func sendSuccessfulJSONMessage() async throws {
+            try await confirmation { requestWasMade in
+                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, expiration, urgency in
+                    #expect(message.json() == ["hello" : "world"])
+                    #expect(subscriber.endpoint.absoluteString == "https://example.com/subscriber")
+                    #expect(subscriber.vapidKeyID == .mockedKeyID1)
+                    #expect(expiration == .recommendedMaximum)
+                    #expect(urgency == .high)
+                    requestWasMade()
+                }
+                
+                try await manager.send(json: ["hello" : "world"], to: .mockedSubscriber())
+            }
+        }
+        
+        @Test func sendPropagatedMockedFailure() async throws {
+            await confirmation { requestWasMade in
+                struct CustomError: Error {}
+                
+                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { _, _, _, _ in
+                    requestWasMade()
+                    throw CustomError()
+                }
+                
+                await #expect(throws: CustomError.self) {
+                    try await manager.send(data: Array(repeating: 0, count: 3994), to: .mockedSubscriber())
                 }
             }
         }
