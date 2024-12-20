@@ -508,6 +508,35 @@ struct WebPushManagerTests {
             }
         }
         
+        @Test func sendExtraLargeMessageFails() async throws {
+            await confirmation { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.makeTesting()
+                
+                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
+                    vapidKeyID: vapidConfiguration.primaryKey!.id
+                )
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(MockHTTPClient({ request in
+                        requestWasMade()
+                        return HTTPClientResponse(status: .payloadTooLarge)
+                    }))
+                )
+                
+                await #expect(throws: MessageTooLargeError()) {
+                    try await manager.send(data: Array(repeating: 0, count: 3994), to: subscriber)
+                }
+            }
+        }
+        
         @Test func sendMessageToNotFoundPushServerError() async throws {
             await confirmation { requestWasMade in
                 let vapidConfiguration = VAPID.Configuration.mockedConfiguration
