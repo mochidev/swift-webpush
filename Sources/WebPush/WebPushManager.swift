@@ -135,7 +135,7 @@ public actor WebPushManager: Sendable {
     }
     
     deinit {
-        if !didShutdown, case let .httpClient(httpClient) = executor {
+        if !didShutdown, case let .httpClient(httpClient, _) = executor {
             try? httpClient.syncShutdown()
         }
     }
@@ -260,11 +260,12 @@ public actor WebPushManager: Sendable {
         logger: Logger? = nil
     ) async throws {
         switch executor {
-        case .httpClient(let httpClient):
+        case .httpClient(let httpClient, let privateKey):
             var logger = logger ?? backgroundActivityLogger
-            logger[metadataKey: "message"] = "\(message)"
+            logger[metadataKey: "message"] = ".data(\(message.base64URLEncodedString()))"
             try await execute(
                 httpClient: httpClient,
+                applicationServerECDHPrivateKey: privateKey,
                 data: message,
                 subscriber: subscriber,
                 expiration: expiration,
@@ -345,9 +346,10 @@ public actor WebPushManager: Sendable {
         var logger = logger
         logger[metadataKey: "message"] = "\(message)"
         switch executor {
-        case .httpClient(let httpClient):
+        case .httpClient(let httpClient, let privateKey):
             try await execute(
                 httpClient: httpClient,
+                applicationServerECDHPrivateKey: privateKey,
                 data: message.data,
                 subscriber: subscriber,
                 expiration: expiration,
@@ -367,6 +369,7 @@ public actor WebPushManager: Sendable {
     /// Send a message via HTTP Client, mocked or otherwise, encrypting it on the way.
     /// - Parameters:
     ///   - httpClient: The protocol implementing HTTP-like functionality.
+    ///   - applicationServerECDHPrivateKey: The private key to use for the key exchange. If nil, one will be generated.
     ///   - message: The message to send as raw data.
     ///   - subscriber: The subscriber to sign the message against.
     ///   - expiration: The expiration of the message.
@@ -374,6 +377,7 @@ public actor WebPushManager: Sendable {
     ///   - logger: The logger to use for status updates.
     func execute(
         httpClient: some HTTPClientProtocol,
+        applicationServerECDHPrivateKey: P256.KeyAgreement.PrivateKey?,
         data message: some DataProtocol,
         subscriber: some SubscriberProtocol,
         expiration: Expiration,
@@ -398,7 +402,7 @@ public actor WebPushManager: Sendable {
         
         /// Prepare authorization, private keys, and payload ahead of time to bail early if they can't be created.
         let authorization = try loadCurrentVAPIDAuthorizationHeader(endpoint: subscriber.endpoint, signingKey: signingKey)
-        let applicationServerECDHPrivateKey = P256.KeyAgreement.PrivateKey()
+        let applicationServerECDHPrivateKey = applicationServerECDHPrivateKey ?? P256.KeyAgreement.PrivateKey()
         
         /// Perform key exchange between the user agent's public key and our private key, deriving a shared secret.
         let userAgent = subscriber.userAgentKeyMaterial
@@ -511,7 +515,7 @@ extension WebPushManager: Service {
         } onCancelOrGracefulShutdown: { [backgroundActivityLogger, executor] in
             backgroundActivityLogger.debug("Shutting down WebPushManager")
             do {
-                if case let .httpClient(httpClient) = executor {
+                if case let .httpClient(httpClient, _) = executor {
                     try httpClient.syncShutdown()
                 }
             } catch {
@@ -715,10 +719,17 @@ extension WebPushManager {
     
     /// An internal type representing the executor for a push message.
     package enum Executor: Sendable {
+        /// Use an HTTP client and optional private key to send an encrypted payload to a subscriber.
+        ///
+        /// This is used in tests to capture the encrypted request and make sure it is well-formed.
+        case httpClient(any HTTPClientProtocol, P256.KeyAgreement.PrivateKey?)
+        
         /// Use an HTTP client to send an encrypted payload to a subscriber.
         ///
         /// This is used in tests to capture the encrypted request and make sure it is well-formed.
-        case httpClient(any HTTPClientProtocol)
+        package static func httpClient(_ httpClient: any HTTPClientProtocol) -> Self {
+            .httpClient(httpClient, nil)
+        }
         
         /// Use a handler to capture the original message.
         ///
