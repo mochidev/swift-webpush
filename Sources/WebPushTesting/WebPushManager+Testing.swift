@@ -11,6 +11,7 @@ import WebPush
 
 extension WebPushManager {
     /// A push message in its original form, either ``/Foundation/Data``, ``/Swift/String``, or ``/Foundation/Encodable``.
+    /// - Warning: Never switch on the message type, as values may be added to it over time.
     public typealias Message = _Message
     
     /// Create a mocked web push manager.

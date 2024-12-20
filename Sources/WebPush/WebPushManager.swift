@@ -681,6 +681,8 @@ extension WebPushManager.Urgency: Codable {
 
 extension WebPushManager {
     /// An internal type representing a push message, accessible when using ``/WebPushTesting``.
+    ///
+    /// - Warning: Never switch on the message type, as values may be added to it over time.
     public enum _Message: Sendable, CustomStringConvertible {
         /// A message originally sent via ``WebPushManager/send(data:to:expiration:urgency:)``
         case data(Data)
@@ -705,6 +707,20 @@ extension WebPushManager {
                     return try encoder.encode(json)
                 }
             }
+        }
+        
+        /// The string value from a ``string(_:)`` message.
+        public var string: String? {
+            guard case let .string(string) = self
+            else { return nil }
+            return string
+        }
+        
+        /// The json value from a ``json(_:)`` message.
+        public func json<JSON: Encodable&Sendable>(as: JSON.Type = JSON.self) -> JSON? {
+            guard case let .json(json) = self
+            else { return nil }
+            return json as? JSON
         }
         
         public var description: String {
