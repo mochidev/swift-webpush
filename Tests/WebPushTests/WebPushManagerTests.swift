@@ -53,6 +53,16 @@ struct WebPushManagerTests {
             }
         }
         
+        @Test func managerUsesDefaultLogging() async throws {
+            let manager = WebPushManager(vapidConfiguration: .makeTesting())
+            #expect(manager.backgroundActivityLogger.handler is PrintLogHandler)
+        }
+        
+        @Test func managerCanSupressLogging() async throws {
+            let manager = WebPushManager(vapidConfiguration: .makeTesting(), backgroundActivityLogger: nil)
+            #expect(manager.backgroundActivityLogger.handler is SwiftLogNoOpLogHandler)
+        }
+        
         @Test func managerCanBeMocked() async throws {
             let manager = WebPushManager.makeMockedManager { _, _, _, _ in }
             await withThrowingTaskGroup(of: Void.self) { group in
@@ -61,6 +71,16 @@ struct WebPushManagerTests {
                 }
                 group.cancelAll()
             }
+        }
+        
+        @Test func mockedManagerUsesDefaultLogging() async throws {
+            let manager = WebPushManager.makeMockedManager(messageHandler: { _, _, _, _ in })
+            #expect(manager.backgroundActivityLogger.handler is PrintLogHandler)
+        }
+        
+        @Test func mockedManagerCanSupressLogging() async throws {
+            let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: nil, messageHandler: { _, _, _, _ in })
+            #expect(manager.backgroundActivityLogger.handler is SwiftLogNoOpLogHandler)
         }
         
         /// Enable when https://github.com/swiftlang/swift-testing/blob/jgrynspan/exit-tests-proposal/Documentation/Proposals/NNNN-exit-tests.md gets accepted.
@@ -344,6 +364,23 @@ struct WebPushManagerTests {
             }
         }
         
+        @Test func sendSuccessfulMultipleMessages() async throws {
+            try await confirmation(expectedCount: 3) { requestWasMade in
+                let manager = WebPushManager(
+                    vapidConfiguration: .mockedConfiguration,
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(MockHTTPClient({ request in
+                        requestWasMade()
+                        return HTTPClientResponse(status: .created)
+                    }))
+                )
+                
+                try await manager.send(string: "hello, world!", to: .mockedSubscriber())
+                try await manager.send(data: [1, 2, 3], to: .mockedSubscriber())
+                try await manager.send(json: ["hello" : "world"], to: .mockedSubscriber())
+            }
+        }
+        
         @Test func sendMessageToSubscriberWithInvalidVAPIDKey() async throws {
             await confirmation(expectedCount: 0) { requestWasMade in
                 var subscriber = Subscriber.mockedSubscriber
@@ -536,7 +573,10 @@ struct WebPushManagerTests {
         @Test func sendSuccessfulTextMessage() async throws {
             try await confirmation { requestWasMade in
                 let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, expiration, urgency in
+                    #expect(message.description == ".string(hello)")
                     #expect(message.string == "hello")
+                    try #expect(message.data == Data("hello".utf8))
+                    #expect(message.json(as: [String:String].self) == nil)
                     #expect(subscriber.endpoint.absoluteString == "https://example.com/subscriber")
                     #expect(subscriber.vapidKeyID == .mockedKeyID1)
                     #expect(expiration == .recommendedMaximum)
@@ -551,7 +591,10 @@ struct WebPushManagerTests {
         @Test func sendSuccessfulDataMessage() async throws {
             try await confirmation { requestWasMade in
                 let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, expiration, urgency in
+                    #expect(message.description == ".data(aGVsbG8)")
                     try #expect(message.data == Data("hello".utf8Bytes))
+                    #expect(message.string == nil)
+                    #expect(message.json(as: [String:String].self) == nil)
                     #expect(subscriber.endpoint.absoluteString == "https://example.com/subscriber")
                     #expect(subscriber.vapidKeyID == .mockedKeyID1)
                     #expect(expiration == .recommendedMaximum)
@@ -566,7 +609,11 @@ struct WebPushManagerTests {
         @Test func sendSuccessfulJSONMessage() async throws {
             try await confirmation { requestWasMade in
                 let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, expiration, urgency in
+                    #expect(message.description == ".json([\"hello\": \"world\"])")
                     #expect(message.json() == ["hello" : "world"])
+                    #expect(message.string == nil)
+                    try #expect(message.data == Data("{\"hello\":\"world\"}".utf8))
+                    #expect(message.json(as: [String].self) == nil)
                     #expect(subscriber.endpoint.absoluteString == "https://example.com/subscriber")
                     #expect(subscriber.vapidKeyID == .mockedKeyID1)
                     #expect(expiration == .recommendedMaximum)
