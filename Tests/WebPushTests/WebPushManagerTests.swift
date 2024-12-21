@@ -364,39 +364,22 @@ struct WebPushManagerTests {
             }
         }
         
-        @Test(.disabled("Fails because we need a public/private key pair that fails to make a shared secret"))
-        func sendMessageToSubscriberWithInvalidUserAgentKey() async throws {
-            try await confirmation(expectedCount: 0) { requestWasMade in
-                let vapidConfiguration = VAPID.Configuration.mockedConfiguration
-                
-                let privateKey = try P256.KeyAgreement.PrivateKey(rawRepresentation: Data(base64Encoded: "fkqlT3FL8B34XFAmm+o6hnIfhK/nT3tB6lirzzR06I0=")!)
-                let publicKey = try P256.KeyAgreement.PublicKey(compressedRepresentation: Data(base64Encoded: "Ahj5uud0fNhE6YUlt8zQ2vbh0gqBiyF1qakeTq5TQ7yY")!)
-                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
-                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
-                
-                let subscriber = Subscriber(
-                    endpoint: URL(string: "https://example.com/subscriber")!,
-                    userAgentKeyMaterial: UserAgentKeyMaterial(
-                        publicKey: publicKey,
-                        authenticationSecret: Data(authenticationSecret)
-                    ),
-                    vapidKeyID: .mockedKeyID1
-                )
-                
+        @Test func sendMessageToSubscriberWithInvalidUserAgentKey() async throws {
+            await confirmation(expectedCount: 0) { requestWasMade in
                 let manager = WebPushManager(
-                    vapidConfiguration: vapidConfiguration,
+                    vapidConfiguration: .mockedConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(
                         MockHTTPClient({ request in
                             requestWasMade()
                             return HTTPClientResponse(status: .created)
                         }),
-                        privateKey
+                        .shared({ _ in throw CancellationError() })
                     )
                 )
                 
                 await #expect(throws: BadSubscriberError()) {
-                    try await manager.send(string: "hello", to: subscriber)
+                    try await manager.send(string: "hello", to: .mockedSubscriber())
                 }
             }
         }
