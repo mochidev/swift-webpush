@@ -260,12 +260,12 @@ public actor WebPushManager: Sendable {
         logger: Logger? = nil
     ) async throws {
         switch executor {
-        case .httpClient(let httpClient, let privateKey):
+        case .httpClient(let httpClient, let privateKeyProvider):
             var logger = logger ?? backgroundActivityLogger
             logger[metadataKey: "message"] = ".data(\(message.base64URLEncodedString()))"
             try await execute(
                 httpClient: httpClient,
-                applicationServerECDHPrivateKey: privateKey,
+                privateKeyProvider: privateKeyProvider,
                 data: message,
                 subscriber: subscriber,
                 expiration: expiration,
@@ -346,10 +346,10 @@ public actor WebPushManager: Sendable {
         var logger = logger
         logger[metadataKey: "message"] = "\(message)"
         switch executor {
-        case .httpClient(let httpClient, let privateKey):
+        case .httpClient(let httpClient, let privateKeyProvider):
             try await execute(
                 httpClient: httpClient,
-                applicationServerECDHPrivateKey: privateKey,
+                privateKeyProvider: privateKeyProvider,
                 data: message.data,
                 subscriber: subscriber,
                 expiration: expiration,
@@ -377,7 +377,7 @@ public actor WebPushManager: Sendable {
     ///   - logger: The logger to use for status updates.
     func execute(
         httpClient: some HTTPClientProtocol,
-        applicationServerECDHPrivateKey: P256.KeyAgreement.PrivateKey?,
+        privateKeyProvider: Executor.KeyProvider,
         data message: some DataProtocol,
         subscriber: some SubscriberProtocol,
         expiration: Expiration,
@@ -402,13 +402,13 @@ public actor WebPushManager: Sendable {
         
         /// Prepare authorization, private keys, and payload ahead of time to bail early if they can't be created.
         let authorization = try loadCurrentVAPIDAuthorizationHeader(endpoint: subscriber.endpoint, signingKey: signingKey)
-        let applicationServerECDHPrivateKey = applicationServerECDHPrivateKey ?? P256.KeyAgreement.PrivateKey()
+        let applicationServerECDHPrivateKey: P256.KeyAgreement.PrivateKey
         
         /// Perform key exchange between the user agent's public key and our private key, deriving a shared secret.
         let userAgent = subscriber.userAgentKeyMaterial
         let sharedSecret: SharedSecret
         do {
-            sharedSecret = try applicationServerECDHPrivateKey.sharedSecretFromKeyAgreement(with: userAgent.publicKey)
+            (applicationServerECDHPrivateKey, sharedSecret) = try privateKeyProvider.sharedSecretFromKeyAgreement(with: userAgent.publicKey)
         } catch {
             logger.debug("A shared secret could not be derived from the subscriber's public key and the newly-generated private key.", metadata: ["error" : "\(error)"])
             throw BadSubscriberError()
@@ -689,6 +689,7 @@ extension WebPushManager {
         
         /// A message originally sent via ``WebPushManager/send(string:to:expiration:urgency:)``
         case string(String)
+        
         /// A message originally sent via ``WebPushManager/send(json:to:expiration:urgency:)``
         case json(any Encodable&Sendable)
         
@@ -737,16 +738,37 @@ extension WebPushManager {
     
     /// An internal type representing the executor for a push message.
     package enum Executor: Sendable {
+        /// A Private Key and Shared Secret provider.
+        package enum KeyProvider: Sendable {
+            /// Generate a new Private Key and Shared Secret when asked.
+            case generateNew
+            
+            /// Used a shared generator to provide a Private Key and Shared Secret when asked.
+            case shared(@Sendable (P256.KeyAgreement.PublicKey) throws -> (P256.KeyAgreement.PrivateKey, SharedSecret))
+            
+            /// Generate the Private Key and Shared Secret against a provided Public Key.
+            func sharedSecretFromKeyAgreement(with publicKeyShare: P256.KeyAgreement.PublicKey) throws -> (P256.KeyAgreement.PrivateKey, SharedSecret) {
+                switch self {
+                case .generateNew:
+                    let privateKey = P256.KeyAgreement.PrivateKey()
+                    let sharedSecret = try privateKey.sharedSecretFromKeyAgreement(with: publicKeyShare)
+                    return (privateKey, sharedSecret)
+                case .shared(let handler):
+                    return try handler(publicKeyShare)
+                }
+            }
+        }
+        
         /// Use an HTTP client and optional private key to send an encrypted payload to a subscriber.
         ///
         /// This is used in tests to capture the encrypted request and make sure it is well-formed.
-        case httpClient(any HTTPClientProtocol, P256.KeyAgreement.PrivateKey?)
+        case httpClient(any HTTPClientProtocol, KeyProvider)
         
         /// Use an HTTP client to send an encrypted payload to a subscriber.
         ///
         /// This is used in tests to capture the encrypted request and make sure it is well-formed.
         package static func httpClient(_ httpClient: any HTTPClientProtocol) -> Self {
-            .httpClient(httpClient, nil)
+            .httpClient(httpClient, .generateNew)
         }
         
         /// Use a handler to capture the original message.
