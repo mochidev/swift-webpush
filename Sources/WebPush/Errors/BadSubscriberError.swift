@@ -11,7 +11,7 @@ import Foundation
 /// The subscription is no longer valid and should be removed and re-registered.
 ///
 /// - Warning: Do not continue to send notifications to invalid subscriptions or you'll risk being rate limited by push services.
-public struct BadSubscriberError: LocalizedError, Hashable {
+public struct BadSubscriberError: LocalizedError, Hashable, Sendable {
     public init() {}
     
     public var errorDescription: String? {

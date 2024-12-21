@@ -11,7 +11,7 @@ import Foundation
 /// The message was too large, and could not be delivered to the push service.
 ///
 /// - SeeAlso: ``WebPushManager/maximumMessageSize``
-public struct MessageTooLargeError: LocalizedError, Hashable {
+public struct MessageTooLargeError: LocalizedError, Hashable, Sendable {
     public init() {}
     
     public var errorDescription: String? {

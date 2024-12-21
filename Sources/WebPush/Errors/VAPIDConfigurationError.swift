@@ -10,7 +10,7 @@ import Foundation
 
 extension VAPID {
     /// An error encountered during ``VAPID/Configuration`` initialization or decoding.
-    public struct ConfigurationError: LocalizedError, Hashable {
+    public struct ConfigurationError: LocalizedError, Hashable, Sendable {
         enum Kind {
             case keysNotProvided
             case matchingKeyNotFound

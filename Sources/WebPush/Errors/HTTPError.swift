@@ -14,14 +14,26 @@ import Foundation
 /// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
 /// - SeeAlso: [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
 /// - SeeAlso: [Sending web push notifications in web apps and browsers — Review responses for push notification errors](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers#Review-responses-for-push-notification-errors)
-public struct HTTPError: LocalizedError {
-    let response: HTTPClientResponse
+public struct HTTPError: LocalizedError, Sendable {
+    public let response: HTTPClientResponse
+    let capturedResponseDescription: String
     
-    init(response: HTTPClientResponse) {
+    public init(response: HTTPClientResponse) {
         self.response = response
+        self.capturedResponseDescription = "\(response)"
     }
     
     public var errorDescription: String? {
-        "A \(response.status) HTTP error was encountered: \(response)."
+        "A \(response.status) HTTP error was encountered: \(capturedResponseDescription)."
+    }
+}
+
+extension HTTPError: Hashable {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        "\(lhs.capturedResponseDescription)" == "\(rhs.capturedResponseDescription)"
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine("\(capturedResponseDescription)")
     }
 }
