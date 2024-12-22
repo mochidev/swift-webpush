@@ -13,6 +13,36 @@ import Testing
 import WebPushTesting
 
 @Suite struct SubscriberTests {
+    @Suite struct Initialization {
+        @Test func fromKeyMaterial() {
+            let privateKey = P256.KeyAgreement.PrivateKey()
+            let subscriber = Subscriber(
+                endpoint: URL(string: "https://example.com/subscriber")!,
+                userAgentKeyMaterial: UserAgentKeyMaterial(
+                    publicKey: privateKey.publicKey,
+                    authenticationSecret: Data()
+                ),
+                vapidKeyID: .mockedKeyID1
+            )
+            #expect(subscriber.endpoint == URL(string: "https://example.com/subscriber")!)
+            #expect(subscriber.userAgentKeyMaterial == UserAgentKeyMaterial(
+                publicKey: privateKey.publicKey,
+                authenticationSecret: Data()
+            ))
+            #expect(subscriber.vapidKeyID == .mockedKeyID1)
+        }
+        
+        @Test func fromOtherSubscriber() {
+            let subscriber = Subscriber(.mockedSubscriber())
+            #expect(subscriber == .mockedSubscriber)
+        }
+        
+        @Test func identifiable() {
+            let subscriber = Subscriber.mockedSubscriber
+            #expect(subscriber.id == "https://example.com/subscriber")
+        }
+    }
+    
     @Suite struct UserAgentKeyMaterialTests {
         @Suite struct Initialization {
             @Test func actualKeys() {
