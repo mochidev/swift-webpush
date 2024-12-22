@@ -237,9 +237,12 @@ struct WebPushManagerTests {
                     vapidKeyID: vapidConfiguration.primaryKey!.id
                 )
                 
+                var logger = Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
+                logger.logLevel = .trace
+                
                 let manager = WebPushManager(
                     vapidConfiguration: vapidConfiguration,
-                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    backgroundActivityLogger: logger,
                     executor: .httpClient(MockHTTPClient({ request in
                         try validateAuthotizationHeader(
                             request: request,
@@ -464,9 +467,12 @@ struct WebPushManagerTests {
             try await confirmation { requestWasMade in
                 let (subscriber, subscriberPrivateKey) = Subscriber.makeMockedSubscriber()
                 
+                var logger = Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
+                logger.logLevel = .trace
+                
                 let manager = WebPushManager(
                     vapidConfiguration: .mockedConfiguration,
-                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    backgroundActivityLogger: logger,
                     executor: .httpClient(MockHTTPClient({ request in
                         try validateAuthotizationHeader(
                             request: request,
