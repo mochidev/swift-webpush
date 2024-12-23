@@ -96,6 +96,7 @@ A **Push Service** is run by browsers to coordinate delivery of messages to subs
 
 </details>
 
+
 ### Generating Keys
 
 Before integrating WebPush into your server, you must generate one time VAPID keys to identify your server to push services with. To help we this, we provide `vapid-key-generator`, which you can install and use as needed:
@@ -116,7 +117,7 @@ To update the generator, uninstall it and re-install it after pulling from main:
 % swift package experimental-install
 ```
 
-Once installed, a new configuration can be generated as needed:
+Once installed, a new configuration can be generated as needed. Here, we generate a configuration with `https://example.com` as our support URL for push service administrators to use to contact us when issues occur:
 ```
 % ~/.swiftpm/bin/vapid-key-generator https://example.com
 VAPID.Configuration: {"contactInformation":"https://example.com","expirationDuration":79200,"primaryKey":"6PSSAJiMj7uOvtE4ymNo5GWcZbT226c5KlV6c+8fx5g=","validityDuration":72000}
@@ -162,21 +163,217 @@ OPTIONS:
 > [!TIP]
 > If you prefer, you can also generate keys in your own code by calling `VAPID.Key()`, but remember, the key should be persisted and re-used from that point forward!
 
+
 ### Setup
 
-TBD
+During the setup stage of your application server, decode the VAPID configuration you created above and initialize a `WebPushManager` with it:
+
+```swift
+import WebPush
+
+...
+
+guard
+    let rawVAPIDConfiguration = ProcessInfo.processInfo.environment["VAPID-CONFIG"],
+    let vapidConfiguration = try? JSONDecoder().decode(VAPID.Configuration.self, from: Data(rawVAPIDConfiguration.utf8))
+else { fatalError("VAPID keys are unavailable, please generate one and add it to the environment.") }
+
+let manager = WebPushManager(
+    vapidConfiguration: vapidConfiguration,
+    backgroundActivityLogger: logger
+    /// If you customized the event loop group your app uses, you can set it here:
+    // eventLoopGroupProvider: .shared(app.eventLoopGroup)
+)
+
+try await ServiceGroup(
+    services: [
+        /// Your other services here
+        manager
+    ],
+    gracefulShutdownSignals: [.sigint],
+    logger: logger
+).run()
+```
+
+If you are not yet using [Swift Service Lifecycle](https://github.com/swift-server/swift-service-lifecycle), you can skip adding it to the service group, and it'll shut down on deinit instead. This however may be too late to finish sending over all in-flight messages, so prefer to use a ServiceGroup for all your services if you can.
+
+You'll also want to serve a `serviceWorker.mjs` file at the root of your server (it can be anywhere, but there are scoping restrictions that are simplified by serving it at the root) to handle incoming notifications:
+
+```js
+self.addEventListener('push', function(event) {
+    const data = event.data?.json() ?? {};
+    event.waitUntil((async () => {
+        /// Try parsing the data, otherwise use fallback content. DO NOT skip sending the notification, as you must display one for every push message that is received or your subscription will be dropped.
+        let title = data?.title ?? "Your App Name";
+        const body = data?.body ?? "New Content Available!";
+        
+        await self.registration.showNotification(title, { 
+            body, 
+            icon: "/notification-icon.png", /// Only some browsers support this.
+            data
+        });
+    })());
+});
+```
+
+> [!NOTE]
+> `.mjs` here allows your code to import other js modules as needed. If you are not using Vapor, please make sure your server uses the correct mime type for this file extension.
+
 
 ### Registering Subscribers
 
-TBD
+To register a subscriber, you'll need backend code to provide your VAPID key, and frontend code to ask the browser for a subscription on behalf of the user.
+
+On the backend (we are assuming Vapor here), register a route that returns your VAPID public key:
+
+```swift
+import WebPush
+
+...
+
+/// Listen somewhere for a VAPID key request. This path can be anything you want, and should be available to all parties you with to serve push messages to.
+app.get("vapidKey", use: loadVapidKey)
+
+...
+
+/// A wrapper for the VAPID key that Vapor can encode.
+struct WebPushOptions: Codable, Content, Hashable, Sendable {
+    static let defaultContentType = HTTPMediaType(type: "application", subType: "webpush-options+json")
+
+    var vapid: VAPID.Key.ID
+}
+
+/// The route handler, usually part of a route controller.
+@Sendable func loadVapidKey(request: Request) async throws -> WebPushOptions {
+    WebPushOptions(vapid: manager.nextVAPIDKeyID)
+}
+```
+
+Also register a route for persisting `Subscriber`'s:
+
+```swift
+import WebPush
+
+...
+
+/// Listen somewhere for new registrations. This path can be anything you want, and should be available to all parties you with to serve push messages to.
+app.get("registerSubscription", use: registerSubscription)
+
+...
+
+/// A custom type for communicating the status of your subscription. Fill this out with any options you'd like to communicate back to the user.
+struct SubscriptionStatus: Codable, Content, Hashable, Sendable {
+    var subscribed = true
+}
+
+/// The route handler, usually part of a route controller.
+@Sendable func registerSubscription(request: Request) async throws -> SubscriptionStatus {
+    let subscriptionRequest = try request.content.decode(Subscriber.self, as: .jsonAPI)
+    
+    // TODO: Persist subscriptionRequest!
+    
+    return SubscriptionStatus()
+}
+```
+
+> [!NOTE]
+> `WebPushManager` (`manager` here) is fully sendable, and should be shared with your controllers using dependency injection. This allows you to fully test your application server by relying on the provided `WebPushTesting` library in your unit tests to mock keys, verify delivery, and simulate errors.
+
+On the frontend, register your service worker, fetch your vapid key, and subscribe on behalf of the user:
+
+```js
+const serviceRegistration = await navigator.serviceWorker?.register("/serviceWorker.mjs", { type: "module" });
+let subscription = await registration?.pushManager?.getSubscription();
+
+/// Wait for the user to interact with the page to request a subscription.
+document.getElementById("notificationsSwitch").addEventListener("click", async ({ currentTarget }) => {
+    try {
+        /// If we couldn't load a subscription, now's the time to ask for one.
+        if (!subscription) {
+            const applicationServerKey = await loadVAPIDKey();
+            subscription = await serviceRegistration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey,
+            });
+        }
+        
+        /// It is safe to re-register the same subscription.
+        const subscriptionStatusResponse = await registerSubscription(subscription);
+        
+        /// Do something with your registration. Some may use it to store notification settings and display those back to the user.
+        ...
+    } catch (error) {
+        /// Tell the user something went wrong here.
+        console.error(error);
+    }
+}
+});
+
+...
+
+async function loadVAPIDKey() {
+    /// Make sure this is the same route used above.
+    const httpResponse = await fetch(`/vapidKey`);
+
+    const webPushOptions = await httpResponse.json();
+    if (httpResponse.status != 200) throw new Error(webPushOptions.reason);
+
+    return webPushOptions.vapid;
+}
+
+export async function registerSubscription(subscription) {
+    /// Make sure this is the same route used above.
+    const subscriptionStatusResponse = await fetch(`/registerSubscription`, {
+        method: "POST",
+        body: {
+            ...subscription.toJSON(),
+            /// It is good practice to provide the applicationServerKey back here so we can track which one was used if multiple were provided during configuration.
+            applicationServerKey: subscription.options.applicationServerKey,
+        }
+    });
+    
+    /// Do something with your registration. Some may use it to store notification settings and display those back to the user.
+    ...
+}
+```
+
 
 ### Sending Messages
 
-TBD
+To send a message, call one of the `send()` methods on `WebPushManager` with a `Subscriber`:
+
+```swift
+import WebPush
+
+...
+
+do {
+    try await manager.send(
+        json: ["title": "Test Notification", "body": "Hello, World!"
+        /// If sent from a request, pass the request's logger here to maintain its metadata.
+        // logger: request.logger
+    )
+} catch BadSubscriberError() {
+    /// The subscription is no longer valid and should be removed.
+} catch MessageTooLargeError() {
+    /// The message was too long and should be shortened.
+} catch let error as HTTPError {
+    /// The push service ran into trouble. error.response may help here.
+} catch {
+    /// An unknown error occurred.
+}
+```
+
+Your service worker will receive this message, decode it, and present it to the user.
+
+> [!NOTE]
+> Although the spec supports it, most browsers do not support silent notifications, and will drop a subscription if they are used.
+
 
 ### Testing
 
 The `WebPushTesting` module can be used to obtain a mocked `WebPushManager` instance that allows you to capture all messages that are sent out, or throw your own errors to validate your code functions appropriately. Only import `WebPushTesting` in your testing targets.
+
 
 ## Specifications
 
