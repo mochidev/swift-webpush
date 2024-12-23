@@ -8,6 +8,7 @@
 
 import Foundation
 
+/// The fully qualified name for VAPID.
 public typealias VoluntaryApplicationServerIdentification = VAPID
 
 /// A set of types for Voluntary Application Server Identification, also known as VAPID.

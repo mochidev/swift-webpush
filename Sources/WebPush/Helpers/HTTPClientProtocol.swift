@@ -10,13 +10,16 @@ import AsyncHTTPClient
 import Logging
 import NIOCore
 
+/// A protocol abstracting HTTP request execution.
 package protocol HTTPClientProtocol: Sendable {
+    /// Execute the request.
     func execute(
         _ request: HTTPClientRequest,
         deadline: NIODeadline,
         logger: Logger?
     ) async throws -> HTTPClientResponse
     
+    /// Shuts down the client.
     func syncShutdown() throws
 }
 

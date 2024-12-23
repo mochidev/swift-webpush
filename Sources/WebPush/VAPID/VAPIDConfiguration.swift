@@ -157,6 +157,7 @@ extension VoluntaryApplicationServerIdentification {
 }
 
 extension VAPID.Configuration: Codable {
+    /// The coding keys used to encode a VAPID configuration.
     public enum CodingKeys: CodingKey {
         case primaryKey
         case keys
@@ -220,6 +221,7 @@ extension VAPID.Configuration {
         /// An email-based contact method.
         case email(String)
         
+        /// The string that representa the contact information as a fully-qualified URL.
         var urlString: String {
             switch self {
             case .url(let url):     url.absoluteURL.absoluteString

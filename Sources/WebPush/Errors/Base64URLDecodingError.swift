@@ -10,6 +10,7 @@ import Foundation
 
 /// An error encountered while decoding Base64 data.
 public struct Base64URLDecodingError: LocalizedError, Hashable, Sendable {
+    /// Create a new base 64 decoding error.
     public init() {}
     
     public var errorDescription: String? {

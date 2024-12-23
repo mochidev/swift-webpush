@@ -9,6 +9,7 @@
 import Foundation
 import Logging
 
+/// A simple log handler that uses formatted print statements.
 package struct PrintLogHandler: LogHandler {
     private let label: String
 

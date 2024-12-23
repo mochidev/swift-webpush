@@ -12,6 +12,7 @@ import Foundation
 ///
 /// - Warning: Do not continue to send notifications to invalid subscriptions or you'll risk being rate limited by push services.
 public struct BadSubscriberError: LocalizedError, Hashable, Sendable {
+    /// Create a new bad subscriber error.
     public init() {}
     
     public var errorDescription: String? {
