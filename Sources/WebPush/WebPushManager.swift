@@ -134,6 +134,7 @@ public actor WebPushManager: Sendable {
         self.executor = executor
     }
     
+    /// Shutdown the client if it hasn't already been stopped.
     deinit {
         if !didShutdown, case let .httpClient(httpClient, _) = executor {
             try? httpClient.syncShutdown()

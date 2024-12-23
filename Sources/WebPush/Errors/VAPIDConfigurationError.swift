@@ -11,11 +11,15 @@ import Foundation
 extension VAPID {
     /// An error encountered during ``VAPID/Configuration`` initialization or decoding.
     public struct ConfigurationError: LocalizedError, Hashable, Sendable {
+        /// The kind of error that occured.
         enum Kind {
+            /// VAPID keys not found during initialization.
             case keysNotProvided
+            /// A VAPID key for the subscriber was not found.
             case matchingKeyNotFound
         }
         
+        /// The kind of error that occured.
         var kind: Kind
         
         /// VAPID keys not found during initialization.

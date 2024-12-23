@@ -12,6 +12,7 @@ import Foundation
 ///
 /// - SeeAlso: ``WebPushManager/maximumMessageSize``
 public struct MessageTooLargeError: LocalizedError, Hashable, Sendable {
+    /// Create a new message too large error.
     public init() {}
     
     public var errorDescription: String? {

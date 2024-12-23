@@ -16,6 +16,7 @@ extension VAPID {
     /// - SeeAlso: [RFC 7515 JSON Web Signature (JWS)](https://datatracker.ietf.org/doc/html/rfc7515)
     ///- SeeAlso: [RFC 7519 JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
     struct Token: Hashable, Codable, Sendable {
+        /// The coding keys used to encode the token.
         enum CodingKeys: String, CodingKey {
             case audience = "aud"
             case subject = "sub"
@@ -118,6 +119,7 @@ extension VAPID {
 }
 
 protocol VAPIDKeyProtocol: Identifiable, Sendable {
+    /// The signature type used by this key.
     associatedtype Signature: ContiguousBytes
     
     /// Returns a JWS signature for the message.

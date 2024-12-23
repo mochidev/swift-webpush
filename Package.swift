@@ -16,11 +16,16 @@ let package = Package(
         .library(name: "WebPushTesting", targets: ["WebPush", "WebPushTesting"]),
     ],
     dependencies: [
+        /// Core dependency that allows us to sign Authorization tokens and encrypt push messages per subscriber before delivery.
         .package(url: "https://github.com/apple/swift-crypto.git", "3.10.0"..<"5.0.0"),
+        /// Logging integration allowing runtime API missuse warnings and push status tracing.
         .package(url: "https://github.com/apple/swift-log.git", from: "1.6.2"),
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.77.0"),
-        .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.24.0"),
+        /// Service lifecycle integration for clean shutdowns in a server environment.
         .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", from: "2.6.2"),
+        /// Internal dependency allowing push message delivery over HTTP/2.
+        .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.24.0"),
+        /// Internal dependency for event loop coordination and shared HTTP types.
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.77.0"),
     ],
     targets: [
         .target(

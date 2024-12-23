@@ -68,8 +68,10 @@ extension VAPID.Key: Identifiable {
     ///
     /// - SeeAlso: [Push API Working Draft §7.2. `PushSubscriptionOptions` Interface](https://www.w3.org/TR/push-api/#pushsubscriptionoptions-interface)
     public struct ID: Hashable, Comparable, Codable, Sendable, CustomStringConvertible {
+        /// The raw string that represents the ID.
         private var rawValue: String
         
+        /// Initialize an ID with a raw string.
         init(_ rawValue: String) {
             self.rawValue = rawValue
         }

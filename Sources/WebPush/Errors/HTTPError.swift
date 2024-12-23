@@ -15,9 +15,13 @@ import Foundation
 /// - SeeAlso: [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
 /// - SeeAlso: [Sending web push notifications in web apps and browsers — Review responses for push notification errors](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers#Review-responses-for-push-notification-errors)
 public struct HTTPError: LocalizedError, Sendable {
+    /// The HTTP response that was returned from the push service..
     public let response: HTTPClientResponse
+    
+    /// A cached description from the response that won't change over the lifetime of the error.
     let capturedResponseDescription: String
     
+    /// Create a new http error.
     public init(response: HTTPClientResponse) {
         self.response = response
         self.capturedResponseDescription = "\(response)"

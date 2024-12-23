@@ -9,6 +9,7 @@
 import Foundation
 
 extension DataProtocol {
+    /// The receiver as a Base64 URL encoded string.
     @_disfavoredOverload
     @usableFromInline
     func base64URLEncodedString() -> String {
@@ -21,6 +22,7 @@ extension DataProtocol {
 }
 
 extension ContiguousBytes {
+    /// The receiver as a Base64 URL encoded string.
     @usableFromInline
     func base64URLEncodedString() -> String {
         withUnsafeBytes { bytes in
@@ -30,6 +32,7 @@ extension ContiguousBytes {
 }
 
 extension DataProtocol where Self: RangeReplaceableCollection {
+    /// Initialize data using a Base64 URL encoded string.
     @usableFromInline
     init?(base64URLEncoded string: some StringProtocol) {
         var base64String = string.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")

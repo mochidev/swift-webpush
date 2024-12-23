@@ -10,13 +10,19 @@ import Foundation
 
 /// An error encountered during ``VAPID/Configuration`` initialization or decoding.
 public struct UserAgentKeyMaterialError: LocalizedError, Sendable {
+    /// The kind of error that occured.
     enum Kind {
+        /// The public key was invalid.
         case invalidPublicKey
+        /// The authentication secret was invalid.
         case invalidAuthenticationSecret
     }
     
+    /// The kind of error that occured.
     var kind: Kind
-    var underlyingError: any Error
+    
+    /// The underlying error that caused this one.
+    public var underlyingError: any Error
     
     /// The public key was invalid.
     public static func invalidPublicKey(underlyingError: Error) -> Self {
