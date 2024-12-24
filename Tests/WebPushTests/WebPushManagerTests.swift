@@ -64,7 +64,7 @@ struct WebPushManagerTests {
         }
         
         @Test func managerCanBeMocked() async throws {
-            let manager = WebPushManager.makeMockedManager { _, _, _, _ in }
+            let manager = WebPushManager.makeMockedManager { _, _, _, _, _ in }
             await withThrowingTaskGroup(of: Void.self) { group in
                 group.addTask {
                     try await manager.run()
@@ -74,12 +74,12 @@ struct WebPushManagerTests {
         }
         
         @Test func mockedManagerUsesDefaultLogging() async throws {
-            let manager = WebPushManager.makeMockedManager(messageHandler: { _, _, _, _ in })
+            let manager = WebPushManager.makeMockedManager(messageHandler: { _, _, _, _, _ in })
             #expect(manager.backgroundActivityLogger.handler is PrintLogHandler)
         }
         
         @Test func mockedManagerCanSupressLogging() async throws {
-            let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: nil, messageHandler: { _, _, _, _ in })
+            let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: nil, messageHandler: { _, _, _, _, _ in })
             #expect(manager.backgroundActivityLogger.handler is SwiftLogNoOpLogHandler)
         }
         
@@ -254,7 +254,7 @@ struct WebPushManagerTests {
                         #expect(request.headers["Content-Type"] == ["application/octet-stream"])
                         #expect(request.headers["TTL"] == ["2592000"])
                         #expect(request.headers["Urgency"] == ["high"])
-                        #expect(request.headers["Topic"] == []) // TODO: Update when topic is added
+                        #expect(request.headers["Topic"] == [])
                         
                         let message = try await decrypt(
                             request: request,
@@ -301,7 +301,7 @@ struct WebPushManagerTests {
                         #expect(request.headers["Content-Type"] == ["application/octet-stream"])
                         #expect(request.headers["TTL"] == ["2592000"])
                         #expect(request.headers["Urgency"] == ["high"])
-                        #expect(request.headers["Topic"] == []) // TODO: Update when topic is added
+                        #expect(request.headers["Topic"] == [])
                         
                         let message = try await decrypt(
                             request: request,
@@ -348,7 +348,7 @@ struct WebPushManagerTests {
                         #expect(request.headers["Content-Type"] == ["application/octet-stream"])
                         #expect(request.headers["TTL"] == ["2592000"])
                         #expect(request.headers["Urgency"] == ["high"])
-                        #expect(request.headers["Topic"] == []) // TODO: Update when topic is added
+                        #expect(request.headers["Topic"] == [])
                         
                         let message = try await decrypt(
                             request: request,
@@ -442,7 +442,7 @@ struct WebPushManagerTests {
                         #expect(request.headers["Content-Type"] == ["application/octet-stream"])
                         #expect(request.headers["TTL"] == ["2592000"])
                         #expect(request.headers["Urgency"] == ["high"])
-                        #expect(request.headers["Topic"] == []) // TODO: Update when topic is added
+                        #expect(request.headers["Topic"] == [])
                         
                         let message = try await decrypt(
                             request: request,
@@ -484,7 +484,7 @@ struct WebPushManagerTests {
                         #expect(request.headers["Content-Type"] == ["application/octet-stream"])
                         #expect(request.headers["TTL"] == ["2592000"])
                         #expect(request.headers["Urgency"] == ["high"])
-                        #expect(request.headers["Topic"] == []) // TODO: Update when topic is added
+                        #expect(request.headers["Topic"] == [])
                         
                         let message = try await decrypt(
                             request: request,
@@ -578,13 +578,14 @@ struct WebPushManagerTests {
     struct SendingMockedMessages {
         @Test func sendSuccessfulTextMessage() async throws {
             try await confirmation { requestWasMade in
-                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, expiration, urgency in
+                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, topic, expiration, urgency in
                     #expect(message.description == ".string(hello)")
                     #expect(message.string == "hello")
                     try #expect(message.data == Data("hello".utf8))
                     #expect(message.json(as: [String:String].self) == nil)
                     #expect(subscriber.endpoint.absoluteString == "https://example.com/subscriber")
                     #expect(subscriber.vapidKeyID == .mockedKeyID1)
+                    #expect(topic == nil)
                     #expect(expiration == .recommendedMaximum)
                     #expect(urgency == .high)
                     requestWasMade()
@@ -596,13 +597,14 @@ struct WebPushManagerTests {
         
         @Test func sendSuccessfulDataMessage() async throws {
             try await confirmation { requestWasMade in
-                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, expiration, urgency in
+                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, topic, expiration, urgency in
                     #expect(message.description == ".data(aGVsbG8)")
                     try #expect(message.data == Data("hello".utf8Bytes))
                     #expect(message.string == nil)
                     #expect(message.json(as: [String:String].self) == nil)
                     #expect(subscriber.endpoint.absoluteString == "https://example.com/subscriber")
                     #expect(subscriber.vapidKeyID == .mockedKeyID1)
+                    #expect(topic == nil)
                     #expect(expiration == .recommendedMaximum)
                     #expect(urgency == .high)
                     requestWasMade()
@@ -614,7 +616,7 @@ struct WebPushManagerTests {
         
         @Test func sendSuccessfulJSONMessage() async throws {
             try await confirmation { requestWasMade in
-                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, expiration, urgency in
+                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { message, subscriber, topic, expiration, urgency in
                     #expect(message.description == ".json([\"hello\": \"world\"])")
                     #expect(message.json() == ["hello" : "world"])
                     #expect(message.string == nil)
@@ -622,6 +624,7 @@ struct WebPushManagerTests {
                     #expect(message.json(as: [String].self) == nil)
                     #expect(subscriber.endpoint.absoluteString == "https://example.com/subscriber")
                     #expect(subscriber.vapidKeyID == .mockedKeyID1)
+                    #expect(topic == nil)
                     #expect(expiration == .recommendedMaximum)
                     #expect(urgency == .high)
                     requestWasMade()
@@ -635,7 +638,7 @@ struct WebPushManagerTests {
             await confirmation { requestWasMade in
                 struct CustomError: Error {}
                 
-                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { _, _, _, _ in
+                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { _, _, _, _, _ in
                     requestWasMade()
                     throw CustomError()
                 }

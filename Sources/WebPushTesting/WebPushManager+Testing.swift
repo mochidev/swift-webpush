@@ -30,6 +30,7 @@ extension WebPushManager {
         messageHandler: @escaping @Sendable (
             _ message: Message,
             _ subscriber: Subscriber,
+            _ topic: Topic?,
             _ expiration: Expiration,
             _ urgency: Urgency
         ) async throws -> Void
