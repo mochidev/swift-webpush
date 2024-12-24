@@ -384,6 +384,168 @@ struct WebPushManagerTests {
             }
         }
         
+        @Test func sendCustomTopic() async throws {
+            try await confirmation { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.makeTesting()
+                
+                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
+                    vapidKeyID: vapidConfiguration.primaryKey!.id
+                )
+                
+                var logger = Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
+                logger.logLevel = .trace
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    backgroundActivityLogger: logger,
+                    executor: .httpClient(MockHTTPClient({ request in
+                        try validateAuthotizationHeader(
+                            request: request,
+                            vapidConfiguration: vapidConfiguration,
+                            origin: "https://example.com"
+                        )
+                        #expect(request.method == .POST)
+                        #expect(request.headers["Content-Encoding"] == ["aes128gcm"])
+                        #expect(request.headers["Content-Type"] == ["application/octet-stream"])
+                        #expect(request.headers["TTL"] == ["2592000"])
+                        #expect(request.headers["Urgency"] == ["high"])
+                        #expect(try request.headers["Topic"] == [Topic(encodableTopic: "topic-id", salt: subscriber.userAgentKeyMaterial.authenticationSecret).topic])
+                        
+                        let message = try await decrypt(
+                            request: request,
+                            userAgentPrivateKey: subscriberPrivateKey,
+                            userAgentKeyMaterial: subscriber.userAgentKeyMaterial
+                        )
+                        
+                        #expect(String(decoding: message, as: UTF8.self) == "hello")
+                        
+                        requestWasMade()
+                        return HTTPClientResponse(status: .created)
+                    }))
+                )
+                
+                try await manager.send(
+                    string: "hello",
+                    to: subscriber,
+                    deduplicationTopic: Topic(encodableTopic: "topic-id", salt: subscriber.userAgentKeyMaterial.authenticationSecret)
+                )
+            }
+        }
+        
+        @Test func sendCustomExpiration() async throws {
+            try await confirmation { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.makeTesting()
+                
+                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
+                    vapidKeyID: vapidConfiguration.primaryKey!.id
+                )
+                
+                var logger = Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
+                logger.logLevel = .trace
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    backgroundActivityLogger: logger,
+                    executor: .httpClient(MockHTTPClient({ request in
+                        try validateAuthotizationHeader(
+                            request: request,
+                            vapidConfiguration: vapidConfiguration,
+                            origin: "https://example.com"
+                        )
+                        #expect(request.method == .POST)
+                        #expect(request.headers["Content-Encoding"] == ["aes128gcm"])
+                        #expect(request.headers["Content-Type"] == ["application/octet-stream"])
+                        #expect(request.headers["TTL"] == ["0"])
+                        #expect(request.headers["Urgency"] == ["high"])
+                        #expect(request.headers["Topic"] == [])
+                        
+                        let message = try await decrypt(
+                            request: request,
+                            userAgentPrivateKey: subscriberPrivateKey,
+                            userAgentKeyMaterial: subscriber.userAgentKeyMaterial
+                        )
+                        
+                        #expect(String(decoding: message, as: UTF8.self) == "hello")
+                        
+                        requestWasMade()
+                        return HTTPClientResponse(status: .created)
+                    }))
+                )
+                
+                try await manager.send(
+                    string: "hello",
+                    to: subscriber,
+                    expiration: .dropIfUndeliverable
+                )
+            }
+        }
+        
+        @Test func sendCustomUrgency() async throws {
+            try await confirmation { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.makeTesting()
+                
+                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
+                    vapidKeyID: vapidConfiguration.primaryKey!.id
+                )
+                
+                var logger = Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
+                logger.logLevel = .trace
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    backgroundActivityLogger: logger,
+                    executor: .httpClient(MockHTTPClient({ request in
+                        try validateAuthotizationHeader(
+                            request: request,
+                            vapidConfiguration: vapidConfiguration,
+                            origin: "https://example.com"
+                        )
+                        #expect(request.method == .POST)
+                        #expect(request.headers["Content-Encoding"] == ["aes128gcm"])
+                        #expect(request.headers["Content-Type"] == ["application/octet-stream"])
+                        #expect(request.headers["TTL"] == ["2592000"])
+                        #expect(request.headers["Urgency"] == ["low"])
+                        #expect(request.headers["Topic"] == [])
+                        
+                        let message = try await decrypt(
+                            request: request,
+                            userAgentPrivateKey: subscriberPrivateKey,
+                            userAgentKeyMaterial: subscriber.userAgentKeyMaterial
+                        )
+                        
+                        #expect(String(decoding: message, as: UTF8.self) == "hello")
+                        
+                        requestWasMade()
+                        return HTTPClientResponse(status: .created)
+                    }))
+                )
+                
+                try await manager.send(
+                    string: "hello",
+                    to: subscriber,
+                    urgency: .low
+                )
+            }
+        }
+        
         @Test func sendMessageToSubscriberWithInvalidVAPIDKey() async throws {
             await confirmation(expectedCount: 0) { requestWasMade in
                 var subscriber = Subscriber.mockedSubscriber
