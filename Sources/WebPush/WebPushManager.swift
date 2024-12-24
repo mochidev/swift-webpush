@@ -250,12 +250,14 @@ public actor WebPushManager: Sendable {
     /// - Parameters:
     ///   - message: The message to send as raw data.
     ///   - subscriber: The subscriber to send the push message to.
+    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
     ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
     public func send(
         data message: some DataProtocol,
         to subscriber: some SubscriberProtocol,
+        deduplicationTopic topic: Topic? = nil,
         expiration: Expiration = .recommendedMaximum,
         urgency: Urgency = .high,
         logger: Logger? = nil
@@ -269,12 +271,13 @@ public actor WebPushManager: Sendable {
                 privateKeyProvider: privateKeyProvider,
                 data: message,
                 subscriber: subscriber,
+                deduplicationTopic: topic,
                 expiration: expiration,
                 urgency: urgency,
                 logger: logger
             )
         case .handler(let handler):
-            try await handler(.data(Data(message)), Subscriber(subscriber), expiration, urgency)
+            try await handler(.data(Data(message)), Subscriber(subscriber), topic, expiration, urgency)
         }
     }
     
@@ -285,12 +288,14 @@ public actor WebPushManager: Sendable {
     /// - Parameters:
     ///   - message: The message to send as a string.
     ///   - subscriber: The subscriber to send the push message to.
+    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
     ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
     public func send(
         string message: some StringProtocol,
         to subscriber: some SubscriberProtocol,
+        deduplicationTopic topic: Topic? = nil,
         expiration: Expiration = .recommendedMaximum,
         urgency: Urgency = .high,
         logger: Logger? = nil
@@ -298,6 +303,7 @@ public actor WebPushManager: Sendable {
         try await routeMessage(
             message: .string(String(message)),
             to: subscriber,
+            deduplicationTopic: topic,
             expiration: expiration,
             urgency: urgency,
             logger: logger ?? backgroundActivityLogger
@@ -311,12 +317,14 @@ public actor WebPushManager: Sendable {
     /// - Parameters:
     ///   - message: The message to send as JSON.
     ///   - subscriber: The subscriber to send the push message to.
+    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
     ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
     public func send(
         json message: some Encodable&Sendable,
         to subscriber: some SubscriberProtocol,
+        deduplicationTopic topic: Topic? = nil,
         expiration: Expiration = .recommendedMaximum,
         urgency: Urgency = .high,
         logger: Logger? = nil
@@ -324,6 +332,7 @@ public actor WebPushManager: Sendable {
         try await routeMessage(
             message: .json(message),
             to: subscriber,
+            deduplicationTopic: topic,
             expiration: expiration,
             urgency: urgency,
             logger: logger ?? backgroundActivityLogger
@@ -334,12 +343,14 @@ public actor WebPushManager: Sendable {
     /// - Parameters:
     ///   - message: The message to send.
     ///   - subscriber: The subscriber to sign the message against.
+    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
     ///   - expiration: The expiration of the message.
     ///   - urgency: The urgency of the message.
     ///   - logger: The logger to use for status updates.
     func routeMessage(
         message: _Message,
         to subscriber: some SubscriberProtocol,
+        deduplicationTopic topic: Topic?,
         expiration: Expiration,
         urgency: Urgency,
         logger: Logger
@@ -353,6 +364,7 @@ public actor WebPushManager: Sendable {
                 privateKeyProvider: privateKeyProvider,
                 data: message.data,
                 subscriber: subscriber,
+                deduplicationTopic: topic,
                 expiration: expiration,
                 urgency: urgency,
                 logger: logger
@@ -361,6 +373,7 @@ public actor WebPushManager: Sendable {
             try await handler(
                 message,
                 Subscriber(subscriber),
+                topic,
                 expiration,
                 urgency
             )
@@ -373,6 +386,7 @@ public actor WebPushManager: Sendable {
     ///   - applicationServerECDHPrivateKey: The private key to use for the key exchange. If nil, one will be generated.
     ///   - message: The message to send as raw data.
     ///   - subscriber: The subscriber to sign the message against.
+    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
     ///   - expiration: The expiration of the message.
     ///   - urgency: The urgency of the message.
     ///   - logger: The logger to use for status updates.
@@ -381,6 +395,7 @@ public actor WebPushManager: Sendable {
         privateKeyProvider: Executor.KeyProvider,
         data message: some DataProtocol,
         subscriber: some SubscriberProtocol,
+        deduplicationTopic topic: Topic?,
         expiration: Expiration,
         urgency: Urgency,
         logger: Logger
@@ -483,6 +498,9 @@ public actor WebPushManager: Sendable {
         request.headers.add(name: "Content-Type", value: "application/octet-stream")
         request.headers.add(name: "TTL", value: "\(max(expiration, .dropIfUndeliverable).seconds)")
         request.headers.add(name: "Urgency", value: "\(urgency)")
+        if let topic {
+            request.headers.add(name: "Topic", value: "\(topic)")
+        }
         request.body = .bytes(ByteBuffer(bytes: requestContent))
         
         /// Send the request to the push endpoint.
@@ -778,6 +796,7 @@ extension WebPushManager {
         case handler(@Sendable (
             _ message: _Message,
             _ subscriber: Subscriber,
+            _ topic: Topic?,
             _ expiration: Expiration,
             _ urgency: Urgency
         ) async throws -> Void)
