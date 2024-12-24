@@ -567,7 +567,7 @@ struct WebPushManagerTests {
                     }))
                 )
                 
-                await #expect(throws: HTTPError.self) {
+                await #expect(throws: PushServiceError.self) {
                     try await manager.send(string: "hello", to: .mockedSubscriber())
                 }
             }

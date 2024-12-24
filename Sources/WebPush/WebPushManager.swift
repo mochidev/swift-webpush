@@ -499,7 +499,7 @@ public actor WebPushManager: Sendable {
             logger.error("The encrypted payload was too large and was rejected by the push service.")
             throw MessageTooLargeError()
         // TODO: 429 too many requests, 500 internal server error, 503 server shutting down - check config and perform a retry after a delay?
-        default: throw HTTPError(response: response)
+        default: throw PushServiceError(response: response)
         }
         logger.trace("Successfully sent notification")
     }

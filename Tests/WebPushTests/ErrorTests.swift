@@ -22,12 +22,12 @@ import Testing
         #expect("\(Base64URLDecodingError().localizedDescription)" == "The Base64 data could not be decoded.")
     }
     
-    @Test func httpError() {
+    @Test func pushServiceError() {
         let response = HTTPClientResponse(status: .notFound)
-        #expect(HTTPError(response: response) == HTTPError(response: response))
-        #expect(HTTPError(response: response).hashValue == HTTPError(response: response).hashValue)
-        #expect(HTTPError(response: response) != HTTPError(response: HTTPClientResponse(status: .internalServerError)))
-        #expect("\(HTTPError(response: response).localizedDescription)" == "A 404 Not Found HTTP error was encountered: \(response).")
+        #expect(PushServiceError(response: response) == PushServiceError(response: response))
+        #expect(PushServiceError(response: response).hashValue == PushServiceError(response: response).hashValue)
+        #expect(PushServiceError(response: response) != PushServiceError(response: HTTPClientResponse(status: .internalServerError)))
+        #expect("\(PushServiceError(response: response).localizedDescription)" == "A 404 Not Found Push Service error was encountered: \(response).")
     }
     
     @Test func messageTooLargeError() {
