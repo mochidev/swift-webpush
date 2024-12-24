@@ -385,7 +385,7 @@ struct WebPushManagerTests {
         }
         
         @Test func sendCustomTopic() async throws {
-            try await confirmation { requestWasMade in
+            try await confirmation(expectedCount: 6) { requestWasMade in
                 let vapidConfiguration = VAPID.Configuration.makeTesting()
                 
                 let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
@@ -423,7 +423,7 @@ struct WebPushManagerTests {
                             userAgentKeyMaterial: subscriber.userAgentKeyMaterial
                         )
                         
-                        #expect(String(decoding: message, as: UTF8.self) == "hello")
+                        #expect(String(decoding: message, as: UTF8.self) == "\"hello\"")
                         
                         requestWasMade()
                         return HTTPClientResponse(status: .created)
@@ -431,15 +431,40 @@ struct WebPushManagerTests {
                 )
                 
                 try await manager.send(
-                    string: "hello",
+                    string: "\"hello\"",
                     to: subscriber,
                     deduplicationTopic: Topic(encodableTopic: "topic-id", salt: subscriber.userAgentKeyMaterial.authenticationSecret)
+                )
+                try await manager.send(
+                    string: "\"hello\"",
+                    to: subscriber,
+                    encodableDeduplicationTopic: "topic-id"
+                )
+                try await manager.send(
+                    data: "\"hello\"".utf8Bytes,
+                    to: subscriber,
+                    deduplicationTopic: Topic(encodableTopic: "topic-id", salt: subscriber.userAgentKeyMaterial.authenticationSecret)
+                )
+                try await manager.send(
+                    data: "\"hello\"".utf8Bytes,
+                    to: subscriber,
+                    encodableDeduplicationTopic: "topic-id"
+                )
+                try await manager.send(
+                    json: "hello",
+                    to: subscriber,
+                    deduplicationTopic: Topic(encodableTopic: "topic-id", salt: subscriber.userAgentKeyMaterial.authenticationSecret)
+                )
+                try await manager.send(
+                    json: "hello",
+                    to: subscriber,
+                    encodableDeduplicationTopic: "topic-id"
                 )
             }
         }
         
         @Test func sendCustomExpiration() async throws {
-            try await confirmation { requestWasMade in
+            try await confirmation(expectedCount: 3) { requestWasMade in
                 let vapidConfiguration = VAPID.Configuration.makeTesting()
                 
                 let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
@@ -477,7 +502,7 @@ struct WebPushManagerTests {
                             userAgentKeyMaterial: subscriber.userAgentKeyMaterial
                         )
                         
-                        #expect(String(decoding: message, as: UTF8.self) == "hello")
+                        #expect(String(decoding: message, as: UTF8.self) == "\"hello\"")
                         
                         requestWasMade()
                         return HTTPClientResponse(status: .created)
@@ -485,7 +510,17 @@ struct WebPushManagerTests {
                 )
                 
                 try await manager.send(
-                    string: "hello",
+                    string: "\"hello\"",
+                    to: subscriber,
+                    expiration: .dropIfUndeliverable
+                )
+                try await manager.send(
+                    data: "\"hello\"".utf8Bytes,
+                    to: subscriber,
+                    expiration: .dropIfUndeliverable
+                )
+                try await manager.send(
+                    json: "hello",
                     to: subscriber,
                     expiration: .dropIfUndeliverable
                 )
@@ -493,7 +528,7 @@ struct WebPushManagerTests {
         }
         
         @Test func sendCustomUrgency() async throws {
-            try await confirmation { requestWasMade in
+            try await confirmation(expectedCount: 3) { requestWasMade in
                 let vapidConfiguration = VAPID.Configuration.makeTesting()
                 
                 let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
@@ -531,7 +566,7 @@ struct WebPushManagerTests {
                             userAgentKeyMaterial: subscriber.userAgentKeyMaterial
                         )
                         
-                        #expect(String(decoding: message, as: UTF8.self) == "hello")
+                        #expect(String(decoding: message, as: UTF8.self) == "\"hello\"")
                         
                         requestWasMade()
                         return HTTPClientResponse(status: .created)
@@ -539,7 +574,17 @@ struct WebPushManagerTests {
                 )
                 
                 try await manager.send(
-                    string: "hello",
+                    string: "\"hello\"",
+                    to: subscriber,
+                    urgency: .low
+                )
+                try await manager.send(
+                    data: "\"hello\"".utf8Bytes,
+                    to: subscriber,
+                    urgency: .low
+                )
+                try await manager.send(
+                    json: "hello",
                     to: subscriber,
                     urgency: .low
                 )

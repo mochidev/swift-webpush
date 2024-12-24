@@ -250,7 +250,7 @@ public actor WebPushManager: Sendable {
     /// - Parameters:
     ///   - message: The message to send as raw data.
     ///   - subscriber: The subscriber to send the push message to.
-    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
+    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service. When specifying a topic, prefer to use ``send(data:to:encodableDeduplicationTopic:expiration:urgency:logger:)`` instead.
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
     ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
@@ -281,6 +281,39 @@ public actor WebPushManager: Sendable {
         }
     }
     
+    /// Send a push message as raw data.
+    ///
+    /// The service worker you registered is expected to know how to decode the data you send.
+    ///
+    /// - Parameters:
+    ///   - message: The message to send as raw data.
+    ///   - subscriber: The subscriber to send the push message to.
+    ///   - encodableDeduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
+    ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
+    ///   - urgency: The urgency of the delivery of the push message.
+    ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
+    @inlinable
+    public func send(
+        data message: some DataProtocol,
+        to subscriber: some SubscriberProtocol,
+        encodableDeduplicationTopic: some Encodable,
+        expiration: Expiration = .recommendedMaximum,
+        urgency: Urgency = .high,
+        logger: Logger? = nil
+    ) async throws {
+        try await send(
+            data: message,
+            to: subscriber,
+            deduplicationTopic: Topic(
+                encodableTopic: encodableDeduplicationTopic,
+                salt: subscriber.userAgentKeyMaterial.authenticationSecret
+            ),
+            expiration: expiration,
+            urgency: urgency,
+            logger: logger
+        )
+    }
+    
     /// Send a push message as a string.
     ///
     /// The service worker you registered is expected to know how to decode the string you send.
@@ -288,7 +321,7 @@ public actor WebPushManager: Sendable {
     /// - Parameters:
     ///   - message: The message to send as a string.
     ///   - subscriber: The subscriber to send the push message to.
-    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
+    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service. When specifying a topic, prefer to use ``send(string:to:encodableDeduplicationTopic:expiration:urgency:logger:)`` instead.
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
     ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
@@ -310,6 +343,39 @@ public actor WebPushManager: Sendable {
         )
     }
     
+    /// Send a push message as a string.
+    ///
+    /// The service worker you registered is expected to know how to decode the string you send.
+    ///
+    /// - Parameters:
+    ///   - message: The message to send as a string.
+    ///   - subscriber: The subscriber to send the push message to.
+    ///   - encodableDeduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
+    ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
+    ///   - urgency: The urgency of the delivery of the push message.
+    ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
+    @inlinable
+    public func send(
+        string message: some StringProtocol,
+        to subscriber: some SubscriberProtocol,
+        encodableDeduplicationTopic: some Encodable,
+        expiration: Expiration = .recommendedMaximum,
+        urgency: Urgency = .high,
+        logger: Logger? = nil
+    ) async throws {
+        try await send(
+            string: message,
+            to: subscriber,
+            deduplicationTopic: Topic(
+                encodableTopic: encodableDeduplicationTopic,
+                salt: subscriber.userAgentKeyMaterial.authenticationSecret
+            ),
+            expiration: expiration,
+            urgency: urgency,
+            logger: logger
+        )
+    }
+    
     /// Send a push message as encoded JSON.
     ///
     /// The service worker you registered is expected to know how to decode the JSON you send. Note that dates are encoded using ``/Foundation/JSONEncoder/DateEncodingStrategy/millisecondsSince1970``, and data is encoded using ``/Foundation/JSONEncoder/DataEncodingStrategy/base64``.
@@ -317,7 +383,7 @@ public actor WebPushManager: Sendable {
     /// - Parameters:
     ///   - message: The message to send as JSON.
     ///   - subscriber: The subscriber to send the push message to.
-    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
+    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service. When specifying a topic, prefer to use ``send(json:to:encodableDeduplicationTopic:expiration:urgency:logger:)`` instead.
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
     ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
@@ -336,6 +402,39 @@ public actor WebPushManager: Sendable {
             expiration: expiration,
             urgency: urgency,
             logger: logger ?? backgroundActivityLogger
+        )
+    }
+    
+    /// Send a push message as encoded JSON.
+    ///
+    /// The service worker you registered is expected to know how to decode the JSON you send. Note that dates are encoded using ``/Foundation/JSONEncoder/DateEncodingStrategy/millisecondsSince1970``, and data is encoded using ``/Foundation/JSONEncoder/DataEncodingStrategy/base64``.
+    ///
+    /// - Parameters:
+    ///   - message: The message to send as JSON.
+    ///   - subscriber: The subscriber to send the push message to.
+    ///   - encodableDeduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
+    ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
+    ///   - urgency: The urgency of the delivery of the push message.
+    ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
+    @inlinable
+    public func send(
+        json message: some Encodable&Sendable,
+        to subscriber: some SubscriberProtocol,
+        encodableDeduplicationTopic: some Encodable,
+        expiration: Expiration = .recommendedMaximum,
+        urgency: Urgency = .high,
+        logger: Logger? = nil
+    ) async throws {
+        try await send(
+            json: message,
+            to: subscriber,
+            deduplicationTopic: Topic(
+                encodableTopic: encodableDeduplicationTopic,
+                salt: subscriber.userAgentKeyMaterial.authenticationSecret
+            ),
+            expiration: expiration,
+            urgency: urgency,
+            logger: logger
         )
     }
     
