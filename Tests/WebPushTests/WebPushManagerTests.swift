@@ -591,6 +591,43 @@ struct WebPushManagerTests {
             }
         }
         
+        @Test func sendMessageSucceedsAfterRetries() async throws {
+            try await confirmation(expectedCount: 1) { requestWasMade in
+                let manager = WebPushManager(
+                    vapidConfiguration: .mockedConfiguration,
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(MockHTTPClient(
+                        { _ in HTTPClientResponse(status: .tooManyRequests) },
+                        { _ in HTTPClientResponse(status: .internalServerError) },
+                        { _ in HTTPClientResponse(status: .serviceUnavailable) },
+                        { _ in
+                            requestWasMade()
+                            return HTTPClientResponse(status: .created)
+                        }
+                    ))
+                )
+                
+                try await manager.send(string: "hello", to: .mockedSubscriber())
+            }
+        }
+        
+        @Test func sendMessageFailsDespiteRetries() async throws {
+            await confirmation(expectedCount: 4) { requestWasMade in
+                let manager = WebPushManager(
+                    vapidConfiguration: .mockedConfiguration,
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(MockHTTPClient({ request in
+                        requestWasMade()
+                        return HTTPClientResponse(status: .serviceUnavailable)
+                    }))
+                )
+                
+                await #expect(throws: PushServiceError(response: HTTPClientResponse(status: .serviceUnavailable))) {
+                    try await manager.send(string: "hello", to: .mockedSubscriber())
+                }
+            }
+        }
+        
         @Test func sendMessageToSubscriberWithInvalidVAPIDKey() async throws {
             await confirmation(expectedCount: 0) { requestWasMade in
                 var subscriber = Subscriber.mockedSubscriber
@@ -770,7 +807,7 @@ struct WebPushManagerTests {
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
-                        return HTTPClientResponse(status: .internalServerError)
+                        return HTTPClientResponse(status: .badRequest)
                     }))
                 )
                 

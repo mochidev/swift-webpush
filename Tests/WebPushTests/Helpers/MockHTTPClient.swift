@@ -12,10 +12,12 @@ import NIOCore
 @testable import WebPush
 
 actor MockHTTPClient: HTTPClientProtocol {
-    var processRequest: (HTTPClientRequest) async throws -> HTTPClientResponse
+    typealias Handler = (HTTPClientRequest) async throws -> HTTPClientResponse
+    var handlers: [Handler]
+    var index = 0
     
-    init(_ processRequest: @escaping (HTTPClientRequest) async throws -> HTTPClientResponse) {
-        self.processRequest = processRequest
+    init(_ requestHandler: Handler...) {
+        self.handlers = requestHandler
     }
     
     func execute(
@@ -23,7 +25,9 @@ actor MockHTTPClient: HTTPClientProtocol {
         deadline: NIODeadline,
         logger: Logger?
     ) async throws -> HTTPClientResponse {
-        try await processRequest(request)
+        let currentHandler = handlers[index]
+        index = (index + 1) % handlers.count
+        return try await currentHandler(request)
     }
     
     nonisolated func syncShutdown() throws {}
