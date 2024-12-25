@@ -48,6 +48,9 @@ public actor WebPushManager: Sendable {
     /// An internal flag indicating if a manager was shutdown already.
     var didShutdown = false
     
+    /// An internal flag indicating if a manager should skipShutting down its client.
+    var skipClientShutdown = false
+    
     /// An internal lookup of keys as provided by the VAPID configuration.
     let vapidKeyLookup: [VAPID.Key.ID : VAPID.Key]
     
@@ -103,6 +106,34 @@ public actor WebPushManager: Sendable {
         )
     }
     
+    /// Initialize a manager with an unsafe HTTP Client.
+    ///
+    /// - Note: You should generally not need to share an HTTP client — in fact, it is heavily discouraged, but provided as an override point should it be necessary. Instead, opt to customize a ``NetworkConfiguration-swift.struct`` and pass it to ``init(vapidConfiguration:networkConfiguration:backgroundActivityLogger:eventLoopGroupProvider:)``, or use `WebPushTesting`'s ``WebPushManager/makeMockedManager(vapidConfiguration:backgroundActivityLogger:messageHandlers:)`` if you intended to mock a ``WebPushManager`` in your tests. If these integration points are not enough, please [create an issue](https://github.com/mochidev/swift-webpush/issues) so we can support it directly.
+    ///
+    /// - Important: You are responsible for shutting down the client, and there is no direct benefit to using a ``WebPushManager`` as a service if you opt for this initializer.
+    ///
+    /// - Parameters:
+    ///   - vapidConfiguration: The VAPID configuration to use when identifying the application server.
+    ///   - networkConfiguration: The network configuration used when configuring the manager.
+    ///   - backgroundActivityLogger: The logger to use for misconfiguration and background activity. By default, a print logger will be used, and if set to `nil`, a no-op logger will be used in release builds. When running in a server environment, your shared logger should be used instead giving you full control of logging and metadata.
+    ///   - unsafeHTTPClient: A custom HTTP client to use.
+    public init(
+        vapidConfiguration: VAPID.Configuration,
+        networkConfiguration: NetworkConfiguration = .default,
+        backgroundActivityLogger: Logger? = .defaultWebPushPrintLogger,
+        unsafeHTTPClient: HTTPClient
+    ) {
+        let backgroundActivityLogger = backgroundActivityLogger ?? .defaultWebPushNoOpLogger
+        
+        self.init(
+            vapidConfiguration: vapidConfiguration,
+            networkConfiguration: networkConfiguration,
+            backgroundActivityLogger: backgroundActivityLogger,
+            executor: .httpClient(unsafeHTTPClient),
+            skipClientShutdown: true
+        )
+    }
+    
     /// Internal method to install a different executor for mocking.
     /// 
     /// Note that this must be called before ``run()`` is called or the client's syncShutdown won't be called.
@@ -111,11 +142,13 @@ public actor WebPushManager: Sendable {
     ///   - networkConfiguration: The network configuration used when configuring the manager.
     ///   - backgroundActivityLogger: The logger to use for misconfiguration and background activity.
     ///   - executor: The executor to use when sending push messages.
+    ///   - skipClientShutdown: Whether to skip client shutdown or not.
     package init(
         vapidConfiguration: VAPID.Configuration,
         networkConfiguration: NetworkConfiguration = .default,
         backgroundActivityLogger: Logger,
-        executor: Executor
+        executor: Executor,
+        skipClientShutdown: Bool = false
     ) {
         var backgroundActivityLogger = backgroundActivityLogger
         backgroundActivityLogger[metadataKey: "vapidConfiguration"] = [
@@ -146,11 +179,12 @@ public actor WebPushManager: Sendable {
         )
         self.backgroundActivityLogger = backgroundActivityLogger
         self.executor = executor
+        self.skipClientShutdown = skipClientShutdown
     }
     
     /// Shutdown the client if it hasn't already been stopped.
     deinit {
-        if !didShutdown, case let .httpClient(httpClient, _) = executor {
+        if !didShutdown, !skipClientShutdown, case let .httpClient(httpClient, _) = executor {
             try? httpClient.syncShutdown()
         }
     }
@@ -729,10 +763,10 @@ extension WebPushManager: Service {
         }
         try await withTaskCancellationOrGracefulShutdownHandler {
             try await gracefulShutdown()
-        } onCancelOrGracefulShutdown: { [backgroundActivityLogger, executor] in
+        } onCancelOrGracefulShutdown: { [skipClientShutdown, backgroundActivityLogger, executor] in
             backgroundActivityLogger.debug("Shutting down WebPushManager")
             do {
-                if case let .httpClient(httpClient, _) = executor {
+                if !skipClientShutdown, case let .httpClient(httpClient, _) = executor {
                     try httpClient.syncShutdown()
                 }
             } catch {
