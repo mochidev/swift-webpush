@@ -73,6 +73,23 @@ struct WebPushManagerTests {
             }
         }
         
+        @Test func managerCanHaveCustomHTTPClient() async throws {
+            let sharedHTTPClient = HTTPClient()
+            var manager: WebPushManager? = WebPushManager(vapidConfiguration: .mockedConfiguration, unsafeHTTPClient: sharedHTTPClient)
+            
+            #expect(manager?.networkConfiguration.retryIntervals == [.milliseconds(500), .seconds(2), .seconds(10)])
+            #expect(manager?.networkConfiguration.alwaysResolveTopics == false)
+            
+            if case .httpClient(let httpClient, _) = await manager?.executor, let httpClient = httpClient as? HTTPClient {
+                #expect(httpClient === sharedHTTPClient)
+            } else {
+                Issue.record("No HTTP client")
+            }
+            
+            manager = nil
+            try await sharedHTTPClient.shutdown()
+        }
+        
         @Test func mockedManagerUsesDefaultLogging() async throws {
             let manager = WebPushManager.makeMockedManager(messageHandler: { _, _, _, _, _ in })
             #expect(manager.backgroundActivityLogger.handler is PrintLogHandler)

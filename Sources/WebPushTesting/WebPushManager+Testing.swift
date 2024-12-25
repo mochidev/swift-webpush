@@ -27,6 +27,8 @@ extension WebPushManager {
     ///
     /// The mocked manager will forward all messages as is to its message handler so that you may either verify that a push was sent, or inspect the contents of the message that was sent.
     ///
+    /// - SeeAlso: ``makeMockedManager(vapidConfiguration:backgroundActivityLogger:messageHandlers:_:)``
+    ///
     /// - Parameters:
     ///   - vapidConfiguration: A VAPID configuration, though the mocked manager doesn't make use of it.
     ///   - logger: An optional logger.
