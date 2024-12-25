@@ -27,6 +27,7 @@ actor MockHTTPClient: HTTPClientProtocol {
     ) async throws -> HTTPClientResponse {
         let currentHandler = handlers[index]
         index = (index + 1) % handlers.count
+        guard deadline >= .now() else { throw HTTPClientError.deadlineExceeded }
         return try await currentHandler(request)
     }
     

@@ -6,7 +6,7 @@
 //  Copyright © 2024 Mochi Development, Inc. All rights reserved.
 //
 
-import AsyncHTTPClient
+@testable import AsyncHTTPClient
 @preconcurrency import Crypto
 import Foundation
 import Logging
@@ -108,6 +108,51 @@ struct WebPushManagerTests {
             configuration.unsafeUpdateKeys(primaryKey: .mockedKey1, keys: [.mockedKey1], deprecatedKeys: [.mockedKey1])
             let manager = WebPushManager(vapidConfiguration: configuration)
             #expect(await manager.vapidKeyLookup == [.mockedKeyID1 : .mockedKey1])
+        }
+        
+        @Test func defaultNetworkConfiguration() async throws {
+            let manager = WebPushManager(vapidConfiguration: .mockedConfiguration)
+            
+            #expect(manager.networkConfiguration.retryIntervals == [.milliseconds(500), .seconds(2), .seconds(10)])
+            #expect(manager.networkConfiguration.alwaysResolveTopics == false)
+            
+            if case .httpClient(let httpClient, _) = await manager.executor, let httpClient = httpClient as? HTTPClient {
+                #expect(httpClient.configuration.httpVersion == .automatic)
+                #expect(httpClient.configuration.timeout.connect == .seconds(10))
+                #expect(httpClient.configuration.timeout.write == nil)
+                #expect(httpClient.configuration.timeout.read == nil)
+                #expect(httpClient.configuration.proxy == nil)
+            } else {
+                Issue.record("No HTTP client")
+            }
+        }
+        
+        @Test func customNetworkConfiguration() async throws {
+            var networkConfiguration = WebPushManager.NetworkConfiguration()
+            networkConfiguration.retryIntervals = []
+            networkConfiguration.alwaysResolveTopics = true
+            networkConfiguration.connectionTimeout = .seconds(20)
+            networkConfiguration.sendTimeout = .seconds(30)
+            networkConfiguration.confirmationTimeout = .seconds(40)
+            networkConfiguration.httpProxy = .server(host: "https://example.com", port: 8080)
+            let manager = WebPushManager(
+                vapidConfiguration: .mockedConfiguration,
+                networkConfiguration: networkConfiguration
+            )
+            
+            #expect(manager.networkConfiguration.retryIntervals == [])
+            #expect(manager.networkConfiguration.alwaysResolveTopics == true)
+            
+            if case .httpClient(let httpClient, _) = await manager.executor, let httpClient = httpClient as? HTTPClient {
+                #expect(httpClient.configuration.httpVersion == .automatic)
+                #expect(httpClient.configuration.timeout.connect == .seconds(20))
+                #expect(httpClient.configuration.timeout.write == .seconds(30))
+                #expect(httpClient.configuration.timeout.read == .seconds(40))
+                #expect(httpClient.configuration.proxy?.host == "https://example.com")
+                #expect(httpClient.configuration.proxy?.port == 8080)
+            } else {
+                Issue.record("No HTTP client")
+            }
         }
     }
     
@@ -403,6 +448,7 @@ struct WebPushManagerTests {
                 
                 let manager = WebPushManager(
                     vapidConfiguration: vapidConfiguration,
+                    networkConfiguration: .init(alwaysResolveTopics: true),
                     backgroundActivityLogger: logger,
                     executor: .httpClient(MockHTTPClient({ request in
                         try validateAuthotizationHeader(
@@ -593,8 +639,11 @@ struct WebPushManagerTests {
         
         @Test func sendMessageSucceedsAfterRetries() async throws {
             try await confirmation(expectedCount: 1) { requestWasMade in
+                var networkConfiguration = WebPushManager.NetworkConfiguration()
+                networkConfiguration.retryIntervals = [.seconds(0), .seconds(0), .seconds(0)]
                 let manager = WebPushManager(
                     vapidConfiguration: .mockedConfiguration,
+                    networkConfiguration: networkConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient(
                         { _ in HTTPClientResponse(status: .tooManyRequests) },
@@ -613,8 +662,11 @@ struct WebPushManagerTests {
         
         @Test func sendMessageFailsDespiteRetries() async throws {
             await confirmation(expectedCount: 4) { requestWasMade in
+                var networkConfiguration = WebPushManager.NetworkConfiguration()
+                networkConfiguration.retryIntervals = [.seconds(0), .seconds(0), .seconds(0)]
                 let manager = WebPushManager(
                     vapidConfiguration: .mockedConfiguration,
+                    networkConfiguration: networkConfiguration,
                     backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
                     executor: .httpClient(MockHTTPClient({ request in
                         requestWasMade()
@@ -625,6 +677,26 @@ struct WebPushManagerTests {
                 await #expect(throws: PushServiceError(response: HTTPClientResponse(status: .serviceUnavailable))) {
                     try await manager.send(string: "hello", to: .mockedSubscriber())
                 }
+            }
+        }
+        
+        @Test func sendMessageFailsDespiteRetriesDueToExpiration() async throws {
+            var networkConfiguration = WebPushManager.NetworkConfiguration()
+            networkConfiguration.retryIntervals = [.seconds(2), .seconds(2), .seconds(2)]
+            let manager = WebPushManager(
+                vapidConfiguration: .mockedConfiguration,
+                networkConfiguration: networkConfiguration,
+                backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                executor: .httpClient(MockHTTPClient(
+                    { _ in HTTPClientResponse(status: .internalServerError) },
+                    { _ in HTTPClientResponse(status: .internalServerError) },
+                    { _ in HTTPClientResponse(status: .internalServerError) },
+                    { _ in HTTPClientResponse(status: .created) }
+                ))
+            )
+            
+            await #expect(throws: HTTPClientError.deadlineExceeded) {
+                try await manager.send(string: "hello", to: .mockedSubscriber(), expiration: .seconds(2))
             }
         }
         
