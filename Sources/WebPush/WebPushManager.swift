@@ -266,7 +266,7 @@ public actor WebPushManager: Sendable {
         case .httpClient(let httpClient, let privateKeyProvider):
             var logger = logger ?? backgroundActivityLogger
             logger[metadataKey: "message"] = ".data(\(message.base64URLEncodedString()))"
-            try await execute(
+            try await encryptPushMessage(
                 httpClient: httpClient,
                 privateKeyProvider: privateKeyProvider,
                 data: message,
@@ -458,7 +458,7 @@ public actor WebPushManager: Sendable {
         logger[metadataKey: "message"] = "\(message)"
         switch executor {
         case .httpClient(let httpClient, let privateKeyProvider):
-            try await execute(
+            try await encryptPushMessage(
                 httpClient: httpClient,
                 privateKeyProvider: privateKeyProvider,
                 data: message.data,
@@ -482,14 +482,14 @@ public actor WebPushManager: Sendable {
     /// Send a message via HTTP Client, mocked or otherwise, encrypting it on the way.
     /// - Parameters:
     ///   - httpClient: The protocol implementing HTTP-like functionality.
-    ///   - applicationServerECDHPrivateKey: The private key to use for the key exchange. If nil, one will be generated.
+    ///   - privateKeyProvider: The private key to use for the key exchange. If nil, one will be generated.
     ///   - message: The message to send as raw data.
     ///   - subscriber: The subscriber to sign the message against.
     ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
     ///   - expiration: The expiration of the message.
     ///   - urgency: The urgency of the message.
     ///   - logger: The logger to use for status updates.
-    func execute(
+    func encryptPushMessage(
         httpClient: some HTTPClientProtocol,
         privateKeyProvider: Executor.KeyProvider,
         data message: some DataProtocol,
@@ -499,6 +499,9 @@ public actor WebPushManager: Sendable {
         urgency: Urgency,
         logger: Logger
     ) async throws {
+        let clock = ContinuousClock()
+        let startTime = clock.now
+        
         var logger = logger
         logger[metadataKey: "subscriber"] = [
             "vapidKeyID" : "\(subscriber.vapidKeyID)",
@@ -508,6 +511,11 @@ public actor WebPushManager: Sendable {
         logger[metadataKey: "urgency"] = "\(urgency)"
         logger[metadataKey: "origin"] = "\(subscriber.endpoint.origin)"
         logger[metadataKey: "messageSize"] = "\(message.count)"
+        logger[metadataKey: "topic"] = "\(topic?.description ?? "nil")"
+        
+        /// Force a random topic so any retries don't get duplicated.
+//        let topic = topic ?? Topic()
+//        logger[metadataKey: "resolvedTopic"] = "\(topic)"
         logger.trace("Sending notification")
         
         guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID] else {
@@ -589,8 +597,60 @@ public actor WebPushManager: Sendable {
             logger.warning("The message expiration should be less than \(Expiration.recommendedMaximum) seconds.")
         }
         
+        let expirationDeadline: ContinuousClock.Instant? = if expiration == .dropIfUndeliverable || expiration == .recommendedMaximum {
+            nil
+        } else {
+            startTime.advanced(by: .seconds(max(expiration, .dropIfUndeliverable).seconds))
+        }
+        
+        let retryDurations: [Duration] = [.milliseconds(500), .seconds(2), .seconds(10)]
+        
+        /// Build and send the request.
+        try await executeRequest(
+            httpClient: httpClient,
+            endpointURLString: subscriber.endpoint.absoluteURL.absoluteString,
+            authorization: authorization,
+            expiration: expiration,
+            urgency: urgency,
+            topic: topic,
+            requestContent: requestContent,
+            clock: clock,
+            expirationDeadline: expirationDeadline,
+            retryDurations: retryDurations[...],
+            logger: logger
+        )
+    }
+    
+    func executeRequest(
+        httpClient: some HTTPClientProtocol,
+        endpointURLString: String,
+        authorization: String,
+        expiration: Expiration,
+        urgency: Urgency,
+        topic: Topic?,
+        requestContent: [UInt8],
+        clock: ContinuousClock,
+        expirationDeadline: ContinuousClock.Instant?,
+        retryDurations: ArraySlice<Duration>,
+        logger: Logger
+    ) async throws {
+        var logger = logger
+        logger[metadataKey: "retryDurationsRemaining"] = .array(retryDurations.map { "\($0.components.seconds)seconds" })
+        
+        var expiration = expiration
+        var requestDeadline = NIODeadline.distantFuture
+        if let expirationDeadline {
+            let remainingDuration = clock.now.duration(to: expirationDeadline)
+            expiration = Expiration(seconds: Int(remainingDuration.components.seconds))
+            requestDeadline = .now() + TimeAmount(remainingDuration)
+            logger[metadataKey: "resolvedExpiration"] = "\(expiration)"
+            logger[metadataKey: "expirationDeadline"] = "\(expirationDeadline)"
+        }
+        
+        logger.trace("Preparing to send push message.")
+        
         /// Add the VAPID authorization and corrent content encoding and type.
-        var request = HTTPClientRequest(url: subscriber.endpoint.absoluteURL.absoluteString)
+        var request = HTTPClientRequest(url: endpointURLString)
         request.method = .POST
         request.headers.add(name: "Authorization", value: authorization)
         request.headers.add(name: "Content-Encoding", value: "aes128gcm")
@@ -603,10 +663,10 @@ public actor WebPushManager: Sendable {
         request.body = .bytes(ByteBuffer(bytes: requestContent))
         
         /// Send the request to the push endpoint.
-        let response = try await httpClient.execute(request, deadline: .distantFuture, logger: logger)
+        let response = try await httpClient.execute(request, deadline: requestDeadline, logger: logger)
         logger[metadataKey: "response"] = "\(response)"
         logger[metadataKey: "statusCode"] = "\(response.status)"
-        logger.trace("Sent notification")
+        logger.trace("Sent push message.")
         
         /// Check the response and determine if the subscription should be removed from our records, or if the notification should just be skipped.
         switch response.status {
@@ -615,10 +675,31 @@ public actor WebPushManager: Sendable {
         case .payloadTooLarge:
             logger.error("The encrypted payload was too large and was rejected by the push service.")
             throw MessageTooLargeError()
-        // TODO: 429 too many requests, 500 internal server error, 503 server shutting down - check config and perform a retry after a delay?
+        case .tooManyRequests, .internalServerError, .serviceUnavailable:
+            /// 429 too many requests, 500 internal server error, 503 server shutting down are all opportunities to just retry if we can, otherwise throw the error
+            guard let retryDuration = retryDurations.first else {
+                logger.trace("Message was rejected, no retries remaining.")
+                throw PushServiceError(response: response)
+            }
+            logger.trace("Message was rejected, but can be retried.")
+            
+            try await Task.sleep(for: retryDuration)
+            try await executeRequest(
+                httpClient: httpClient,
+                endpointURLString: endpointURLString,
+                authorization: authorization,
+                expiration: expiration,
+                urgency: urgency,
+                topic: topic,
+                requestContent: requestContent,
+                clock: clock,
+                expirationDeadline: expirationDeadline,
+                retryDurations: retryDurations.dropFirst(),
+                logger: logger
+            )
         default: throw PushServiceError(response: response)
         }
-        logger.trace("Successfully sent notification")
+        logger.trace("Successfully sent push message.")
     }
 }
 
