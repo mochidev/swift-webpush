@@ -637,7 +637,7 @@ public actor WebPushManager: Sendable {
             .withUnsafeBytes(AES.GCM.Nonce.init(data:))
         
         /// Encrypt the padded payload into a single record.
-        /// - SeeAlso: [RFC 8188 Encrypted Content-Encoding for HTTP](https://datatracker.ietf.org/doc/html/rfc8188)
+        /// - SeeAlso: [RFC 8188 — Encrypted Content-Encoding for HTTP](https://datatracker.ietf.org/doc/html/rfc8188)
         let encryptedRecord = try AES.GCM.seal(paddedPayload, using: contentEncryptionKey, nonce: nonce)
         
         /// Attach the header with our public key and salt, along with the authentication tag.
@@ -784,7 +784,7 @@ extension WebPushManager: Service {
 extension WebPushManager {
     /// A duration in seconds used to express when push messages will expire.
     ///
-    /// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP §5.2. Push Message Time-To-Live](https://datatracker.ietf.org/doc/html/rfc8030#section-5.2)
+    /// - SeeAlso: [RFC 8030 — Generic Event Delivery Using HTTP §5.2. Push Message Time-To-Live](https://datatracker.ietf.org/doc/html/rfc8030#section-5.2)
     public struct Expiration: Hashable, Comparable, Codable, ExpressibleByIntegerLiteral, AdditiveArithmetic, Sendable {
         /// The number of seconds represented by this expiration.
         public let seconds: Int
@@ -800,7 +800,7 @@ extension WebPushManager {
         ///
         /// If the user agent is unavailable, a push message with a zero TTL expires and is never delivered.
         ///
-        /// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP §5.2. Push Message Time-To-Live](https://datatracker.ietf.org/doc/html/rfc8030#section-5.2)
+        /// - SeeAlso: [RFC 8030 — Generic Event Delivery Using HTTP §5.2. Push Message Time-To-Live](https://datatracker.ietf.org/doc/html/rfc8030#section-5.2)
         public static let dropIfUndeliverable: Self = .zero
         
         /// Initialize an expiration with a number of seconds.
@@ -868,7 +868,7 @@ extension WebPushManager {
 extension WebPushManager {
     /// The urgency with which to deliver a push message.
     ///
-    /// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP §5.3. Push Message Urgency](https://datatracker.ietf.org/doc/html/rfc8030#section-5.3)
+    /// - SeeAlso: [RFC 8030 — Generic Event Delivery Using HTTP §5.3. Push Message Urgency](https://datatracker.ietf.org/doc/html/rfc8030#section-5.3)
     public struct Urgency: Hashable, Comparable, Sendable, CustomStringConvertible {
         /// The internal raw value that is encoded in this type's place when calling ``description``.
         let rawValue: String

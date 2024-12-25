@@ -416,13 +416,13 @@ import WebPushTesting
 
 ## Specifications
 
-- [RFC 6454 The Web Origin Concept](https://datatracker.ietf.org/doc/html/rfc6454)
-- [RFC 7515 JSON Web Signature (JWS)](https://datatracker.ietf.org/doc/html/rfc7515)
-- [RFC 7519 JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
-- [RFC 8030 Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
-- [RFC 8188 Encrypted Content-Encoding for HTTP](https://datatracker.ietf.org/doc/html/rfc8188)
-- [RFC 8291 Message Encryption for Web Push](https://datatracker.ietf.org/doc/html/rfc8291)
-- [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
+- [RFC 6454 — The Web Origin Concept](https://datatracker.ietf.org/doc/html/rfc6454)
+- [RFC 7515 — JSON Web Signature (JWS)](https://datatracker.ietf.org/doc/html/rfc7515)
+- [RFC 7519 — JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
+- [RFC 8030 — Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
+- [RFC 8188 — Encrypted Content-Encoding for HTTP](https://datatracker.ietf.org/doc/html/rfc8188)
+- [RFC 8291 — Message Encryption for Web Push](https://datatracker.ietf.org/doc/html/rfc8291)
+- [RFC 8292 — Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
 
 
 - [Push API Working Draft](https://www.w3.org/TR/push-api/)

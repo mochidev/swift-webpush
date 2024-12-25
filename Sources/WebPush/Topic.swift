@@ -15,7 +15,7 @@ import Foundation
 ///
 /// - Important: Since topics are sent in the clear to push services, they must be securely hashed. You must use a stable random value for this, such as the subscriber's ``UserAgentKeyMaterial/authenticationSecret``. This is fine for most applications, though you may wish to use a different key if your application requires it.
 ///
-/// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP §5.4. Replacing Push Messages](https://datatracker.ietf.org/doc/html/rfc8030#section-5.4)
+/// - SeeAlso: [RFC 8030 — Generic Event Delivery Using HTTP §5.4. Replacing Push Messages](https://datatracker.ietf.org/doc/html/rfc8030#section-5.4)
 public struct Topic: Hashable, Sendable, CustomStringConvertible {
     /// The topic value to use.
     public let topic: String
