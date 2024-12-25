@@ -22,7 +22,10 @@ import ServiceLifecycle
 /// The manager should be installed as a service to wait for any in-flight messages to be sent before your application server shuts down.
 public actor WebPushManager: Sendable {
     /// The VAPID configuration used when configuring the manager.
-    public let vapidConfiguration: VAPID.Configuration
+    public nonisolated let vapidConfiguration: VAPID.Configuration
+    
+    /// The network configuration used when configuring the manager.
+    public nonisolated let networkConfiguration: NetworkConfiguration
     
     /// The maximum encrypted payload size guaranteed by the spec.
     ///
@@ -57,11 +60,12 @@ public actor WebPushManager: Sendable {
     /// - Note: On debug builds, this initializer will assert if VAPID authorization header expiration times are inconsistently set.
     /// - Parameters:
     ///   - vapidConfiguration: The VAPID configuration to use when identifying the application server.
+    ///   - networkConfiguration: The network configuration used when configuring the manager.
     ///   - backgroundActivityLogger: The logger to use for misconfiguration and background activity. By default, a print logger will be used, and if set to `nil`, a no-op logger will be used in release builds. When running in a server environment, your shared logger should be used instead giving you full control of logging and metadata.
     ///   - eventLoopGroupProvider: The event loop to use for the internal HTTP client.
     public init(
         vapidConfiguration: VAPID.Configuration,
-        // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
+        networkConfiguration: NetworkConfiguration = .default,
         backgroundActivityLogger: Logger? = .defaultWebPushPrintLogger,
         eventLoopGroupProvider: NIOEventLoopGroupProvider = .shared(.singletonMultiThreadedEventLoopGroup)
     ) {
@@ -69,6 +73,13 @@ public actor WebPushManager: Sendable {
         
         var httpClientConfiguration = HTTPClient.Configuration()
         httpClientConfiguration.httpVersion = .automatic
+        httpClientConfiguration.timeout.connect = TimeAmount(networkConfiguration.connectionTimeout)
+        httpClientConfiguration.timeout.read = networkConfiguration.confirmationTimeout.map { TimeAmount($0) }
+        httpClientConfiguration.timeout.write = networkConfiguration.sendTimeout.map { TimeAmount($0) }
+        httpClientConfiguration.proxy = networkConfiguration.httpProxy
+        /// Apple's push service recomments leaving the connection open as long as possible. We are picking 12 hours here.
+        /// - SeeAlso: [Sending notification requests to APNs: Follow best practices while sending push notifications with APNs](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns#Follow-best-practices-while-sending-push-notifications-with-APNs)
+        httpClientConfiguration.connectionPool.idleTimeout = .hours(12)
         
         let executor: Executor = switch eventLoopGroupProvider {
         case .shared(let eventLoopGroup):
@@ -86,6 +97,7 @@ public actor WebPushManager: Sendable {
         
         self.init(
             vapidConfiguration: vapidConfiguration,
+            networkConfiguration: networkConfiguration,
             backgroundActivityLogger: backgroundActivityLogger,
             executor: executor
         )
@@ -96,11 +108,12 @@ public actor WebPushManager: Sendable {
     /// Note that this must be called before ``run()`` is called or the client's syncShutdown won't be called.
     /// - Parameters:
     ///   - vapidConfiguration: The VAPID configuration to use when identifying the application server.
+    ///   - networkConfiguration: The network configuration used when configuring the manager.
     ///   - backgroundActivityLogger: The logger to use for misconfiguration and background activity.
     ///   - executor: The executor to use when sending push messages.
     package init(
         vapidConfiguration: VAPID.Configuration,
-        // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
+        networkConfiguration: NetworkConfiguration = .default,
         backgroundActivityLogger: Logger,
         executor: Executor
     ) {
@@ -125,6 +138,7 @@ public actor WebPushManager: Sendable {
         precondition(!vapidConfiguration.keys.isEmpty, "VAPID.Configuration must have keys specified. Please report this as a bug with reproduction steps if encountered: https://github.com/mochidev/swift-webpush/issues.")
         
         self.vapidConfiguration = vapidConfiguration
+        self.networkConfiguration = networkConfiguration
         let allKeys = vapidConfiguration.keys + Array(vapidConfiguration.deprecatedKeys ?? [])
         self.vapidKeyLookup = Dictionary(
             allKeys.map { ($0.id, $0) },
@@ -513,9 +527,13 @@ public actor WebPushManager: Sendable {
         logger[metadataKey: "messageSize"] = "\(message.count)"
         logger[metadataKey: "topic"] = "\(topic?.description ?? "nil")"
         
-        /// Force a random topic so any retries don't get duplicated.
-//        let topic = topic ?? Topic()
-//        logger[metadataKey: "resolvedTopic"] = "\(topic)"
+        /// Force a random topic so any retries don't get duplicated when the option is set.
+        var topic = topic
+        if networkConfiguration.alwaysResolveTopics {
+            let resolvedTopic = topic ?? Topic()
+            logger[metadataKey: "resolvedTopic"] = "\(resolvedTopic)"
+            topic = resolvedTopic
+        }
         logger.trace("Sending notification")
         
         guard let signingKey = vapidKeyLookup[subscriber.vapidKeyID] else {
@@ -603,8 +621,6 @@ public actor WebPushManager: Sendable {
             startTime.advanced(by: .seconds(max(expiration, .dropIfUndeliverable).seconds))
         }
         
-        let retryDurations: [Duration] = [.milliseconds(500), .seconds(2), .seconds(10)]
-        
         /// Build and send the request.
         try await executeRequest(
             httpClient: httpClient,
@@ -616,7 +632,7 @@ public actor WebPushManager: Sendable {
             requestContent: requestContent,
             clock: clock,
             expirationDeadline: expirationDeadline,
-            retryDurations: retryDurations[...],
+            retryIntervals: networkConfiguration.retryIntervals[...],
             logger: logger
         )
     }
@@ -631,11 +647,11 @@ public actor WebPushManager: Sendable {
         requestContent: [UInt8],
         clock: ContinuousClock,
         expirationDeadline: ContinuousClock.Instant?,
-        retryDurations: ArraySlice<Duration>,
+        retryIntervals: ArraySlice<Duration>,
         logger: Logger
     ) async throws {
         var logger = logger
-        logger[metadataKey: "retryDurationsRemaining"] = .array(retryDurations.map { "\($0.components.seconds)seconds" })
+        logger[metadataKey: "retryDurationsRemaining"] = .array(retryIntervals.map { "\($0.components.seconds)seconds" })
         
         var expiration = expiration
         var requestDeadline = NIODeadline.distantFuture
@@ -677,13 +693,13 @@ public actor WebPushManager: Sendable {
             throw MessageTooLargeError()
         case .tooManyRequests, .internalServerError, .serviceUnavailable:
             /// 429 too many requests, 500 internal server error, 503 server shutting down are all opportunities to just retry if we can, otherwise throw the error
-            guard let retryDuration = retryDurations.first else {
+            guard let retryInterval = retryIntervals.first else {
                 logger.trace("Message was rejected, no retries remaining.")
                 throw PushServiceError(response: response)
             }
             logger.trace("Message was rejected, but can be retried.")
             
-            try await Task.sleep(for: retryDuration)
+            try await Task.sleep(for: retryInterval)
             try await executeRequest(
                 httpClient: httpClient,
                 endpointURLString: endpointURLString,
@@ -694,7 +710,7 @@ public actor WebPushManager: Sendable {
                 requestContent: requestContent,
                 clock: clock,
                 expirationDeadline: expirationDeadline,
-                retryDurations: retryDurations.dropFirst(),
+                retryIntervals: retryIntervals.dropFirst(),
                 logger: logger
             )
         default: throw PushServiceError(response: response)
@@ -873,6 +889,67 @@ extension WebPushManager.Urgency: Codable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
+    }
+}
+
+extension WebPushManager {
+    /// The network configuration for a web push manager.
+    public struct NetworkConfiguration: Hashable, Sendable {
+        /// A list of intervals to wait between automatic retries.
+        ///
+        /// Only some push service errors can safely be automatically retried. When one such error is encountered, this list is used to wait a set amount of time after a compatible failure, then perform a retry, adjusting expiration values as needed.
+        ///
+        /// Specify `[]` to disable retries.
+        public var retryIntervals: [Duration]
+        
+        /// A flag to automatically generate a random `Topic` to prevent messages that are automatically retried from being delivered twice.
+        ///
+        /// This is usually not necessary for a compliant push service, but can be turned on if you are experiencing the same message being delivered twice when a retry occurs.
+        public var alwaysResolveTopics: Bool
+        
+        /// A timeout before a connection is dropped.
+        public var connectionTimeout: Duration
+        
+        /// A timeout before we abandon the connection due to messages not being sent.
+        ///
+        /// If `nil`, no timeout will be used.
+        public var sendTimeout: Duration?
+        
+        /// A timeout before we abondon the connection due to the push service not sending back acknowledgement a message was received.
+        ///
+        /// If `nil`, no timeout will be used.
+        public var confirmationTimeout: Duration?
+        
+        /// An HTTP proxy to use when communicating to a push service.
+        ///
+        /// If `nil`, no proxy will be used.
+        public var httpProxy: HTTPClient.Configuration.Proxy?
+        
+        /// Initialize a new network configuration.
+        /// - Parameters:
+        ///   - retryIntervals: A list of intervals to wait between automatic retries before giving up. Defaults to a maximum of three retries.
+        ///   - alwaysResolveTopics: A flag to automatically generate a random `Topic` to prevent messages that are automatically retried from being delivered twice. Defaults to `false`.
+        ///   - connectionTimeout: A timeout before a connection is dropped. Defaults to 10 seconds
+        ///   - sendTimeout: A timeout before we abandon the connection due to messages not being sent. Defaults to no timeout.
+        ///   - confirmationTimeout: A timeout before we abondon the connection due to the push service not sending back acknowledgement a message was received. Defaults to no timeout.
+        ///   - httpProxy: An HTTP proxy to use when communicating to a push service. Defaults to no proxy.
+        public init(
+            retryIntervals: [Duration] = [.milliseconds(500), .seconds(2), .seconds(10)],
+            alwaysResolveTopics: Bool = false,
+            connectionTimeout: Duration? = nil,
+            sendTimeout: Duration? = nil,
+            confirmationTimeout: Duration? = nil,
+            httpProxy: HTTPClient.Configuration.Proxy? = nil
+        ) {
+            self.retryIntervals = retryIntervals
+            self.alwaysResolveTopics = alwaysResolveTopics
+            self.connectionTimeout = connectionTimeout ?? .seconds(10)
+            self.sendTimeout = sendTimeout
+            self.confirmationTimeout = confirmationTimeout
+            self.httpProxy = httpProxy
+        }
+        
+        public static let `default` = NetworkConfiguration()
     }
 }
 
