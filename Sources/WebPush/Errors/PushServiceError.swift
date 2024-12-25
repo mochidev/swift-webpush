@@ -11,8 +11,8 @@ import Foundation
 
 /// An unknown Push Service error was encountered.
 ///
-/// - SeeAlso: [RFC 8030 Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
-/// - SeeAlso: [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
+/// - SeeAlso: [RFC 8030 — Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
+/// - SeeAlso: [RFC 8292 — Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
 /// - SeeAlso: [Sending web push notifications in web apps and browsers — Review responses for push notification errors](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers#Review-responses-for-push-notification-errors)
 public struct PushServiceError: LocalizedError, Sendable {
     /// The HTTP response that was returned from the push service..

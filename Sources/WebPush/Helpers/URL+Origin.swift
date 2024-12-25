@@ -13,8 +13,8 @@ extension URL {
     ///
     /// This implementation is similar to the [WHATWG Standard](https://url.spec.whatwg.org/#concept-url-origin), except that it uses the unicode form of the host, and is limited to HTTP and HTTPS schemas.
     ///
-    /// - SeeAlso: [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push §2. Application Server Self-Identification](https://datatracker.ietf.org/doc/html/rfc8292#section-2)
-    /// - SeeAlso: [RFC6454 The Web Origin Concept §6.1. Unicode Serialization of an Origin](https://datatracker.ietf.org/doc/html/rfc6454#section-6.1)
+    /// - SeeAlso: [RFC 8292 — Voluntary Application Server Identification (VAPID) for Web Push §2. Application Server Self-Identification](https://datatracker.ietf.org/doc/html/rfc8292#section-2)
+    /// - SeeAlso: [RFC 6454 — The Web Origin Concept §6.1. Unicode Serialization of an Origin](https://datatracker.ietf.org/doc/html/rfc6454#section-6.1)
     var origin: String {
         /// Note that we need the unicode variant, which only URLComponents provides.
         let components = URLComponents(url: self, resolvingAgainstBaseURL: true)
