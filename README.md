@@ -416,6 +416,7 @@ import WebPushTesting
 
 ## Specifications
 
+- [RFC 6454 The Web Origin Concept](https://datatracker.ietf.org/doc/html/rfc6454)
 - [RFC 7515 JSON Web Signature (JWS)](https://datatracker.ietf.org/doc/html/rfc7515)
 - [RFC 7519 JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
 - [RFC 8030 Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
@@ -423,7 +424,21 @@ import WebPushTesting
 - [RFC 8291 Message Encryption for Web Push](https://datatracker.ietf.org/doc/html/rfc8291)
 - [RFC 8292 Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
 
+
 - [Push API Working Draft](https://www.w3.org/TR/push-api/)
+
+
+## Other Resources
+
+- [Apple Developer — Sending web push notifications in web apps and browsers](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers)
+- [WWDC22 — Meet Web Push for Safari](https://developer.apple.com/videos/play/wwdc2022/10098/)
+- [WebKit — Meet Web Push](https://webkit.org/blog/12945/meet-web-push/)
+- [WebKit — Web Push for Web Apps on iOS and iPadOS](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/)
+- [MDN — Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
+- [MDN — Service Worker API](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API)
+- [web.dev — The Web Push Protocol](https://web.dev/articles/push-notifications-web-push-protocol)
+- [Sample Code — ServiceWorker Cookbook](https://github.com/mdn/serviceworker-cookbook/tree/master/push-simple)
+- [Web Push: Data Encryption Test Page](https://mozilla-services.github.io/WebPushDataTestPage/)
 
 ## Contributing
 
