@@ -878,18 +878,28 @@ struct WebPushManagerTests {
             }
         }
         
+        @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
         @Test func sendPropagatedMockedFailure() async throws {
-            await confirmation { requestWasMade in
-                struct CustomError: Error {}
-                
-                let manager = WebPushManager.makeMockedManager(backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })) { _, _, _, _, _ in
-                    requestWasMade()
-                    throw CustomError()
-                }
-                
-                await #expect(throws: CustomError.self) {
-                    try await manager.send(data: Array(repeating: 0, count: 3994), to: .mockedSubscriber())
-                }
+            struct CustomError: Error {}
+            
+            let manager = WebPushManager.makeMockedManager(
+                backgroundActivityLogger: nil,
+                messageHandlers:
+                    { _, _, _, _, _ in throw BadSubscriberError() },
+                    { _, _, _, _, _ in throw CustomError() }
+            )
+            
+            await #expect(throws: BadSubscriberError.self) {
+                try await manager.send(string: "test", to: .mockedSubscriber())
+            }
+            await #expect(throws: CustomError.self) {
+                try await manager.send(string: "test", to: .mockedSubscriber())
+            }
+            await #expect(throws: BadSubscriberError.self) {
+                try await manager.send(string: "test", to: .mockedSubscriber())
+            }
+            await #expect(throws: CustomError.self) {
+                try await manager.send(string: "test", to: .mockedSubscriber())
             }
         }
     }
