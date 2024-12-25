@@ -373,8 +373,46 @@ Your service worker will receive this message, decode it, and present it to the 
 
 ### Testing
 
-The `WebPushTesting` module can be used to obtain a mocked `WebPushManager` instance that allows you to capture all messages that are sent out, or throw your own errors to validate your code functions appropriately. Only import `WebPushTesting` in your testing targets.
+The `WebPushTesting` module can be used to obtain a mocked `WebPushManager` instance that allows you to capture all messages that are sent out, or throw your own errors to validate your code functions appropriately.
 
+> [!IMPORTANT]
+> Only import `WebPushTesting` in your testing targets.
+
+```swift
+import Testing
+import WebPushTesting
+
+@Test func sendSuccessfulNotifications() async throws {
+    try await confirmation { requestWasMade in
+        let mockedManager = WebPushManager.makeMockedManager { message, subscriber, topic, expiration, urgency in
+            #expect(message.string == "hello")
+            #expect(subscriber.endpoint.absoluteString == "https://example.com/expectedSubscriber")
+            #expect(subscriber.vapidKeyID == .mockedKeyID1)
+            #expect(topic == nil)
+            #expect(expiration == .recommendedMaximum)
+            #expect(urgency == .high)
+            requestWasMade()
+        }
+        
+        let myController = MyController(pushManager: mockedManager)
+        try await myController.sendNotifications()
+    }
+}
+
+@Test func catchBadSubscriptions() async throws {
+    /// Mocked managers accept multiple handlers, and will cycle through them each time a push message is sent:
+    let mockedManager = WebPushManager.makeMockedManager(messageHandlers:
+        { _, _, _, _, _ in throw BadSubscriberError() },
+        { _, _, _, _, _ in },
+        { _, _, _, _, _ in throw BadSubscriberError() },
+    )
+    
+    let myController = MyController(pushManager: mockedManager)
+    #expect(myController.subscribers.count == 3)
+    try await myController.sendNotifications()
+    #expect(myController.subscribers.count == 1)
+}
+```
 
 ## Specifications
 
