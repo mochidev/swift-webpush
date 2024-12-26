@@ -7,7 +7,11 @@
 //
 
 @preconcurrency import Crypto
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 /// Topics are used to de-duplicate and overwrite messages on push services before they are delivered to a subscriber.
 ///

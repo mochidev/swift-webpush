@@ -6,7 +6,11 @@
 //  Copyright © 2024 Mochi Development, Inc. All rights reserved.
 //
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 /// An error encountered while decoding Base64 data.
 public struct Base64URLDecodingError: LocalizedError, Hashable, Sendable {

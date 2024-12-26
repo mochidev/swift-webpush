@@ -7,7 +7,11 @@
 //
 
 @preconcurrency import Crypto
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 extension VoluntaryApplicationServerIdentification {
     /// Represents the application server's identification key that is used to confirm to a push service that the server connecting to it is the same one that was subscribed to.

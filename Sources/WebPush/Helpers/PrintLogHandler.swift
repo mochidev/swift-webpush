@@ -6,7 +6,11 @@
 //  Copyright © 2024 Mochi Development, Inc. All rights reserved.
 //
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 import Logging
 
 /// A simple log handler that uses formatted print statements.

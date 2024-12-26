@@ -7,7 +7,11 @@
 //
 
 @preconcurrency import Crypto
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 /// Represents a subscriber registration from the browser.
 ///

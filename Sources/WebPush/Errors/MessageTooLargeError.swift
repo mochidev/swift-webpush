@@ -6,7 +6,11 @@
 //  Copyright © 2024 Mochi Development, Inc. All rights reserved.
 //
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 /// The message was too large, and could not be delivered to the push service.
 ///

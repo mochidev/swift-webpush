@@ -7,7 +7,11 @@
 //
 
 @preconcurrency import Crypto
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 extension VAPID {
     /// An internal representation the token and authorization headers used self-identification.

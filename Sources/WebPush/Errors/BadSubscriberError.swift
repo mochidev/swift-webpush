@@ -6,7 +6,11 @@
 //  Copyright © 2024 Mochi Development, Inc. All rights reserved.
 //
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 /// The subscription is no longer valid and should be removed and re-registered.
 ///

@@ -8,7 +8,11 @@
 
 @testable import AsyncHTTPClient
 @preconcurrency import Crypto
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 import Logging
 import ServiceLifecycle
 import Testing
