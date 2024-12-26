@@ -7,7 +7,11 @@
 //
 
 import AsyncHTTPClient
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 import Testing
 @testable import WebPush
 

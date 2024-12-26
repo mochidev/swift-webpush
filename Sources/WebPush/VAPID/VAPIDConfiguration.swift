@@ -6,7 +6,11 @@
 //  Copyright © 2024 Mochi Development, Inc. All rights reserved.
 //
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 extension VoluntaryApplicationServerIdentification {
     /// A configuration object specifying the contact information along with the keys that your application server identifies itself with.

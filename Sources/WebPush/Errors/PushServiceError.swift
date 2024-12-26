@@ -7,7 +7,11 @@
 //
 
 import AsyncHTTPClient
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 /// An unknown Push Service error was encountered.
 ///

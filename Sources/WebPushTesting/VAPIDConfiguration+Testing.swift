@@ -7,7 +7,11 @@
 //
 
 @preconcurrency import Crypto
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 import WebPush
 
 extension VAPID.Configuration {
