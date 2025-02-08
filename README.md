@@ -350,15 +350,16 @@ import WebPush
 
 do {
     try await manager.send(
-        json: ["title": "Test Notification", "body": "Hello, World!"
+        json: ["title": "Test Notification", "body": "Hello, World!",
+        to: subscriber
         /// If sent from a request, pass the request's logger here to maintain its metadata.
         // logger: request.logger
     )
-} catch BadSubscriberError() {
+} catch is BadSubscriberError {
     /// The subscription is no longer valid and should be removed.
-} catch MessageTooLargeError() {
+} catch is MessageTooLargeError {
     /// The message was too long and should be shortened.
-} catch let error as HTTPError {
+} catch let error as PushServiceError {
     /// The push service ran into trouble. error.response may help here.
 } catch {
     /// An unknown error occurred.
