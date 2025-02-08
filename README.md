@@ -307,7 +307,6 @@ document.getElementById("notificationsSwitch").addEventListener("click", async (
         /// Tell the user something went wrong here.
         console.error(error);
     }
-}
 });
 
 ...
@@ -330,7 +329,7 @@ export async function registerSubscription(subscription) {
             ...subscription.toJSON(),
             /// It is good practice to provide the applicationServerKey back here so we can track which one was used if multiple were provided during configuration.
             applicationServerKey: subscription.options.applicationServerKey,
-        }
+        },
     });
     
     /// Do something with your registration. Some may use it to store notification settings and display those back to the user.
@@ -350,7 +349,7 @@ import WebPush
 
 do {
     try await manager.send(
-        json: ["title": "Test Notification", "body": "Hello, World!",
+        json: ["title": "Test Notification", "body": "Hello, World!"],
         to: subscriber
         /// If sent from a request, pass the request's logger here to maintain its metadata.
         // logger: request.logger
