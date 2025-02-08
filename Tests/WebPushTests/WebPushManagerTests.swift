@@ -14,6 +14,7 @@ import FoundationEssentials
 import Foundation
 #endif
 import Logging
+import NIO
 import ServiceLifecycle
 import Testing
 @testable import WebPush
@@ -48,7 +49,7 @@ struct WebPushManagerTests {
         }
         
         @Test func managerCanCreateThreadPool() async throws {
-            let manager = WebPushManager(vapidConfiguration: .makeTesting(), eventLoopGroupProvider: .createNew)
+            let manager = WebPushManager(vapidConfiguration: .makeTesting(), eventLoopGroupProvider: .shared(MultiThreadedEventLoopGroup.singleton))
             await withThrowingTaskGroup(of: Void.self) { group in
                 group.addTask {
                     try await manager.run()
