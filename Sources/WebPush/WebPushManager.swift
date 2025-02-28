@@ -490,6 +490,65 @@ public actor WebPushManager: Sendable {
         )
     }
     
+    /// Send a push notification.
+    ///
+    /// If you provide ``PushMessage/Notification/data``, the service worker you registered is expected to know how to decode it. Note that dates are encoded using ``/Foundation/JSONEncoder/DateEncodingStrategy/millisecondsSince1970``, and data is encoded using ``/Foundation/JSONEncoder/DataEncodingStrategy/base64``.
+    ///
+    /// - Parameters:
+    ///   - notification: The ``PushMessage/Notification`` push notification.
+    ///   - subscriber: The subscriber to send the push message to.
+    ///   - deduplicationTopic: The topic to use when deduplicating messages stored on a Push Service. When specifying a topic, prefer to use ``send(json:to:encodableDeduplicationTopic:expiration:urgency:logger:)`` instead.
+    ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
+    ///   - urgency: The urgency of the delivery of the push message.
+    ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
+    public func send(
+        notification: some Encodable&Sendable,
+        to subscriber: some SubscriberProtocol,
+        deduplicationTopic topic: Topic? = nil,
+        expiration: Expiration = .recommendedMaximum,
+        urgency: Urgency = .high,
+        logger: Logger? = nil
+    ) async throws {
+        try await send(
+            json: notification,
+            to: subscriber,
+            deduplicationTopic: topic,
+            expiration: expiration,
+            urgency: urgency,
+            logger: logger
+        )
+    }
+    
+    /// Send a push notification.
+    ///
+    /// If you provide ``PushMessage/Notification/data``, the service worker you registered is expected to know how to decode it. Note that dates are encoded using ``/Foundation/JSONEncoder/DateEncodingStrategy/millisecondsSince1970``, and data is encoded using ``/Foundation/JSONEncoder/DataEncodingStrategy/base64``.
+    ///
+    /// - Parameters:
+    ///   - notification: The ``PushMessage/Notification`` push notification.
+    ///   - subscriber: The subscriber to send the push message to.
+    ///   - encodableDeduplicationTopic: The topic to use when deduplicating messages stored on a Push Service.
+    ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
+    ///   - urgency: The urgency of the delivery of the push message.
+    ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
+    @inlinable
+    public func send(
+        notification: some Encodable&Sendable,
+        to subscriber: some SubscriberProtocol,
+        encodableDeduplicationTopic: some Encodable,
+        expiration: Expiration = .recommendedMaximum,
+        urgency: Urgency = .high,
+        logger: Logger? = nil
+    ) async throws {
+        try await send(
+            json: notification,
+            to: subscriber,
+            encodableDeduplicationTopic: encodableDeduplicationTopic,
+            expiration: expiration,
+            urgency: urgency,
+            logger: logger
+        )
+    }
+    
     /// Route a message to the current executor.
     /// - Parameters:
     ///   - message: The message to send.
