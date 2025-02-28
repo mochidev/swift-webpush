@@ -416,6 +416,8 @@ import WebPushTesting
 
 ## Specifications
 
+### RFC Standards
+
 - [RFC 6454 — The Web Origin Concept](https://datatracker.ietf.org/doc/html/rfc6454)
 - [RFC 7515 — JSON Web Signature (JWS)](https://datatracker.ietf.org/doc/html/rfc7515)
 - [RFC 7519 — JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
@@ -424,9 +426,15 @@ import WebPushTesting
 - [RFC 8291 — Message Encryption for Web Push](https://datatracker.ietf.org/doc/html/rfc8291)
 - [RFC 8292 — Voluntary Application Server Identification (VAPID) for Web Push](https://datatracker.ietf.org/doc/html/rfc8292)
 
+### W3C Standards
 
 - [Push API Working Draft](https://www.w3.org/TR/push-api/)
+- [Push API Editor's Draft — `declarative-push` branch](https://raw.githubusercontent.com/w3c/push-api/refs/heads/declarative-push/index.html)
 
+### WHATWG Standards
+
+- [Notifications API — Living Standard](https://notifications.spec.whatwg.org/)
+- [Notifications API — PR #213 — Allow notifications and actions to specify a navigable URL](https://whatpr.org/notifications/213.html)
 
 ## Other Resources
 
@@ -434,6 +442,7 @@ import WebPushTesting
 - [WWDC22 — Meet Web Push for Safari](https://developer.apple.com/videos/play/wwdc2022/10098/)
 - [WebKit — Meet Web Push](https://webkit.org/blog/12945/meet-web-push/)
 - [WebKit — Web Push for Web Apps on iOS and iPadOS](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/)
+- [MDN — Notification](https://developer.mozilla.org/en-US/docs/Web/API/Notification)
 - [MDN — Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
 - [MDN — Service Worker API](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API)
 - [web.dev — The Web Push Protocol](https://web.dev/articles/push-notifications-web-push-protocol)
