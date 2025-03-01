@@ -6,7 +6,11 @@
 //  Copyright © 2024-25 Mochi Development, Inc. All rights reserved.
 //
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 // MARK: - Notification
 
