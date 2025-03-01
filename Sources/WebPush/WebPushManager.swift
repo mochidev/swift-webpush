@@ -1078,6 +1078,7 @@ extension WebPushManager {
                 case .json(let json):
                     let encoder = JSONEncoder()
                     encoder.dateEncodingStrategy = .millisecondsSince1970
+                    encoder.outputFormatting = [.withoutEscapingSlashes]
                     return try encoder.encode(json)
                 }
             }
