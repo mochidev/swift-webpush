@@ -434,6 +434,64 @@ struct WebPushManagerTests {
             }
         }
         
+        @Test func sendSuccessfulNotification() async throws {
+            try await confirmation { requestWasMade in
+                let vapidConfiguration = VAPID.Configuration.makeTesting()
+                
+                let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
+                var authenticationSecret: [UInt8] = Array(repeating: 0, count: 16)
+                for index in authenticationSecret.indices { authenticationSecret[index] = .random(in: .min ... .max) }
+                
+                let subscriber = Subscriber(
+                    endpoint: URL(string: "https://example.com/subscriber")!,
+                    userAgentKeyMaterial: UserAgentKeyMaterial(publicKey: subscriberPrivateKey.publicKey, authenticationSecret: Data(authenticationSecret)),
+                    vapidKeyID: vapidConfiguration.primaryKey!.id
+                )
+                
+                let notification = PushMessage.Notification(
+                    destination: URL(string: "https://jiiiii.moe")!,
+                    title: "New Anime",
+                    timestamp: Date(timeIntervalSince1970: 1_000_000_000)
+                )
+                
+                let manager = WebPushManager(
+                    vapidConfiguration: vapidConfiguration,
+                    backgroundActivityLogger: Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) }),
+                    executor: .httpClient(MockHTTPClient({ request in
+                        try validateAuthotizationHeader(
+                            request: request,
+                            vapidConfiguration: vapidConfiguration,
+                            origin: "https://example.com"
+                        )
+                        #expect(request.method == .POST)
+                        #expect(request.headers["Content-Encoding"] == ["aes128gcm"])
+                        #expect(request.headers["Content-Type"] == ["application/octet-stream"])
+                        #expect(request.headers["TTL"] == ["2592000"])
+                        #expect(request.headers["Urgency"] == ["high"])
+                        #expect(request.headers["Topic"] == [])
+                        
+                        let message = try await decrypt(
+                            request: request,
+                            userAgentPrivateKey: subscriberPrivateKey,
+                            userAgentKeyMaterial: subscriber.userAgentKeyMaterial
+                        )
+                        
+                        let decodedNotification = try JSONDecoder().decode(PushMessage.SimpleNotification.self, from: Data(message))
+                        
+                        #expect(decodedNotification == notification)
+                        
+                        requestWasMade()
+                        return HTTPClientResponse(status: .created)
+                    }))
+                )
+                
+                try await manager.send(
+                    notification: notification,
+                    to: subscriber
+                )
+            }
+        }
+        
         @Test func sendSuccessfulMultipleMessages() async throws {
             try await confirmation(expectedCount: 3) { requestWasMade in
                 let manager = WebPushManager(
@@ -452,7 +510,7 @@ struct WebPushManagerTests {
         }
         
         @Test func sendCustomTopic() async throws {
-            try await confirmation(expectedCount: 6) { requestWasMade in
+            try await confirmation(expectedCount: 8) { requestWasMade in
                 let vapidConfiguration = VAPID.Configuration.makeTesting()
                 
                 let subscriberPrivateKey = P256.KeyAgreement.PrivateKey(compactRepresentable: false)
@@ -467,6 +525,12 @@ struct WebPushManagerTests {
                 
                 var logger = Logger(label: "WebPushManagerTests", factory: { PrintLogHandler(label: $0, metadataProvider: $1) })
                 logger.logLevel = .trace
+                
+                let notification = PushMessage.Notification(
+                    destination: URL(string: "https://jiiiii.moe")!,
+                    title: "New Anime",
+                    timestamp: Date(timeIntervalSince1970: 1_000_000_000)
+                )
                 
                 let manager = WebPushManager(
                     vapidConfiguration: vapidConfiguration,
@@ -491,7 +555,12 @@ struct WebPushManagerTests {
                             userAgentKeyMaterial: subscriber.userAgentKeyMaterial
                         )
                         
-                        #expect(String(decoding: message, as: UTF8.self) == "\"hello\"")
+                        if message.count == 7 {
+                            #expect(String(decoding: message, as: UTF8.self) == #""hello""#)
+                        } else {
+                            let decodedNotification = try JSONDecoder().decode(PushMessage.SimpleNotification.self, from: Data(message))
+                            #expect(decodedNotification == notification)
+                        }
                         
                         requestWasMade()
                         return HTTPClientResponse(status: .created)
@@ -525,6 +594,16 @@ struct WebPushManagerTests {
                 )
                 try await manager.send(
                     json: "hello",
+                    to: subscriber,
+                    encodableDeduplicationTopic: "topic-id"
+                )
+                try await manager.send(
+                    notification: notification,
+                    to: subscriber,
+                    deduplicationTopic: Topic(encodableTopic: "topic-id", salt: subscriber.userAgentKeyMaterial.authenticationSecret)
+                )
+                try await manager.send(
+                    notification: notification,
                     to: subscriber,
                     encodableDeduplicationTopic: "topic-id"
                 )
