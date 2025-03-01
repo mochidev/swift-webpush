@@ -501,8 +501,8 @@ public actor WebPushManager: Sendable {
     ///   - expiration: The expiration of the push message, after wich delivery will no longer be attempted.
     ///   - urgency: The urgency of the delivery of the push message.
     ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
-    public func send(
-        notification: some Encodable&Sendable,
+    public func send<Contents>(
+        notification: PushMessage.Notification<Contents>,
         to subscriber: some SubscriberProtocol,
         deduplicationTopic topic: Topic? = nil,
         expiration: Expiration = .recommendedMaximum,
@@ -531,8 +531,8 @@ public actor WebPushManager: Sendable {
     ///   - urgency: The urgency of the delivery of the push message.
     ///   - logger: The logger to use for status updates. If not provided, the background activity logger will be used instead. When running in a server environment, your contextual logger should be used instead giving you full control of logging and metadata.
     @inlinable
-    public func send(
-        notification: some Encodable&Sendable,
+    public func send<Contents>(
+        notification: PushMessage.Notification<Contents>,
         to subscriber: some SubscriberProtocol,
         encodableDeduplicationTopic: some Encodable,
         expiration: Expiration = .recommendedMaximum,
