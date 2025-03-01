@@ -6,7 +6,5 @@
 //  Copyright © 2024-25 Mochi Development, Inc. All rights reserved.
 //
 
-import Foundation
-
 /// Common Push Message types.
 public enum PushMessage: Sendable {}
