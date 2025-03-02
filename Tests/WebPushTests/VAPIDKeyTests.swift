@@ -101,6 +101,7 @@ import WebPushTesting
         
         @Test func decoding() throws {
             #expect(try JSONDecoder().decode(VAPID.Key.ID.self, from: Data("\"BLf3RZAljlexEovBgfZgFTjcEVUKBDr3lIH8quJioMdX4FweRdId_P72h613ptxtU-qSAyW3Tbt_3WgwGhOUxrs\"".utf8)) == .mockedKeyID1)
+            #expect(try JSONDecoder().decode(VAPID.Key.ID.self, from: Data("\"BLf3RZAljlexEovBgfZgFTjcEVUKBDr3lIH8quJioMdX4FweRdId/P72h613ptxtU+qSAyW3Tbt/3WgwGhOUxrs=\"".utf8)) == .mockedKeyID1)
         }
     }
 }
