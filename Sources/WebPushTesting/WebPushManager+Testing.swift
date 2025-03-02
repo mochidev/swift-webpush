@@ -38,7 +38,7 @@ extension WebPushManager {
         vapidConfiguration: VAPID.Configuration = .mockedConfiguration,
         // TODO: Add networkConfiguration for proxy, number of simultaneous pushes, etc…
         backgroundActivityLogger: Logger? = .defaultWebPushPrintLogger,
-        messageHandler: @escaping MessageHandler
+        messageHandler: @escaping MessageHandler = { _, _, _, _, _ in }
     ) -> WebPushManager {
         let backgroundActivityLogger = backgroundActivityLogger ?? .defaultWebPushNoOpLogger
         

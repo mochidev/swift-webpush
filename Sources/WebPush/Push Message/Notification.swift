@@ -278,6 +278,17 @@ extension PushMessage.Notification: Encodable {
         try messageContainer.encodeIfPresent(appBadgeCount, forKey: .appBadgeCount)
         if isMutable { try messageContainer.encode(isMutable, forKey: .isMutable) }
     }
+    
+    /// Check to see if a notification is potentially too large to be sent to a push service.
+    ///
+    /// - Note: _Some_ push services may still accept larger messages, so you can only truly know if a message is _too_ large by attempting to send it and checking for a ``MessageTooLargeError`` error. However, if a message passes this check, it is guaranteed to not fail for this reason, assuming the push service implements the minimum requirements of the spec, which you can assume for all major browsers. For these reasons, unless you are sending the same message to multiple subscribers, it's often faster to just try sending the message rather than checking before sending.
+    ///
+    /// - Throws: ``MessageTooLargeError`` if the message is too large. Throws another error if encoding fails.
+    @inlinable
+    public func checkMessageSize() throws {
+        guard try WebPushManager.messageEncoder.encode(self).count <= WebPushManager.maximumMessageSize
+        else { throw MessageTooLargeError() }
+    }
 }
 
 extension PushMessage.Notification: Decodable where Contents: Decodable {
