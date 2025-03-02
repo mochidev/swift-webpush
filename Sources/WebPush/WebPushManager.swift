@@ -43,6 +43,15 @@ public actor WebPushManager: Sendable {
     /// This is currently set to 3,993 plaintext bytes. See the discussion for ``maximumEncryptedPayloadSize`` for more information.
     public static let maximumMessageSize = maximumEncryptedPayloadSize - 103
     
+    /// The encoder used when serializing JSON messages.
+    public static let messageEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        encoder.outputFormatting = [.withoutEscapingSlashes]
+        
+        return encoder
+    }()
+    
     /// The internal logger to use when reporting misconfiguration and background activity.
     nonisolated let backgroundActivityLogger: Logger
     
@@ -366,6 +375,19 @@ public actor WebPushManager: Sendable {
         )
     }
     
+    /// Check to see if a message is potentially too large to be sent to a push service.
+    ///
+    /// - Note: _Some_ push services may still accept larger messages, so you can only truly know if a message is _too_ large by attempting to send it and checking for a ``MessageTooLargeError`` error. However, if a message passes this check, it is guaranteed to not fail for this reason, assuming the push service implements the minimum requirements of the spec, which you can assume for all major browsers.
+    ///
+    /// - Parameters:
+    ///   - message: The message to send as raw data.
+    /// - Throws: ``MessageTooLargeError`` if the message is too large.
+    @inlinable
+    public nonisolated func checkMessageSize(data message: some DataProtocol) throws(MessageTooLargeError) {
+        guard message.count <= Self.maximumMessageSize
+        else { throw MessageTooLargeError() }
+    }
+    
     /// Send a push message as a string.
     ///
     /// The service worker you registered is expected to know how to decode the string you send.
@@ -426,6 +448,19 @@ public actor WebPushManager: Sendable {
             urgency: urgency,
             logger: logger
         )
+    }
+    
+    /// Check to see if a message is potentially too large to be sent to a push service.
+    ///
+    /// - Note: _Some_ push services may still accept larger messages, so you can only truly know if a message is _too_ large by attempting to send it and checking for a ``MessageTooLargeError`` error. However, if a message passes this check, it is guaranteed to not fail for this reason, assuming the push service implements the minimum requirements of the spec, which you can assume for all major browsers. For these reasons, unless you are sending the same message to multiple subscribers, it's often faster to just try sending the message rather than checking before sending.
+    ///
+    /// - Parameters:
+    ///   - message: The message to send as a string.
+    /// - Throws: ``MessageTooLargeError`` if the message is too large.
+    @inlinable
+    public nonisolated func checkMessageSize(string message: some StringProtocol) throws(MessageTooLargeError) {
+        guard message.utf8.count <= Self.maximumMessageSize
+        else { throw MessageTooLargeError() }
     }
     
     /// Send a push message as encoded JSON.
@@ -490,6 +525,18 @@ public actor WebPushManager: Sendable {
         )
     }
     
+    /// Check to see if a message is potentially too large to be sent to a push service.
+    ///
+    /// - Note: _Some_ push services may still accept larger messages, so you can only truly know if a message is _too_ large by attempting to send it and checking for a ``MessageTooLargeError`` error. However, if a message passes this check, it is guaranteed to not fail for this reason, assuming the push service implements the minimum requirements of the spec, which you can assume for all major browsers. For these reasons, unless you are sending the same message to multiple subscribers, it's often faster to just try sending the message rather than checking before sending.
+    ///
+    /// - Parameters:
+    ///   - message: The message to send as JSON.
+    /// - Throws: ``MessageTooLargeError`` if the message is too large. Throws another error if encoding fails.
+    @inlinable
+    public nonisolated func checkMessageSize(json message: some Encodable&Sendable) throws {
+        try _Message.json(message).checkMessageSize()
+    }
+    
     /// Send a push notification.
     ///
     /// If you provide ``PushMessage/Notification/data``, the service worker you registered is expected to know how to decode it. Note that dates are encoded using ``/Foundation/JSONEncoder/DateEncodingStrategy/millisecondsSince1970``, and data is encoded using ``/Foundation/JSONEncoder/DataEncodingStrategy/base64``.
@@ -547,6 +594,18 @@ public actor WebPushManager: Sendable {
             urgency: urgency,
             logger: logger
         )
+    }
+    
+    /// Check to see if a message is potentially too large to be sent to a push service.
+    ///
+    /// - Note: _Some_ push services may still accept larger messages, so you can only truly know if a message is _too_ large by attempting to send it and checking for a ``MessageTooLargeError`` error. However, if a message passes this check, it is guaranteed to not fail for this reason, assuming the push service implements the minimum requirements of the spec, which you can assume for all major browsers. For these reasons, unless you are sending the same message to multiple subscribers, it's often faster to just try sending the message rather than checking before sending.
+    ///
+    /// - Parameters:
+    ///   - notification: The ``PushMessage/Notification`` push notification.
+    /// - Throws: ``MessageTooLargeError`` if the message is too large. Throws another error if encoding fails.
+    @inlinable
+    public nonisolated func checkMessageSize<Contents>(notification: PushMessage.Notification<Contents>) throws {
+        try notification.checkMessageSize()
     }
     
     /// Route a message to the current executor.
@@ -1067,6 +1126,7 @@ extension WebPushManager {
         case json(any Encodable&Sendable)
         
         /// The message, encoded as data.
+        @usableFromInline
         var data: Data {
             get throws {
                 switch self {
@@ -1076,15 +1136,13 @@ extension WebPushManager {
                     var string = string
                     return string.withUTF8 { Data($0) }
                 case .json(let json):
-                    let encoder = JSONEncoder()
-                    encoder.dateEncodingStrategy = .millisecondsSince1970
-                    encoder.outputFormatting = [.withoutEscapingSlashes]
-                    return try encoder.encode(json)
+                    return try WebPushManager.messageEncoder.encode(json)
                 }
             }
         }
         
         /// The string value from a ``string(_:)`` message.
+        @inlinable
         public var string: String? {
             guard case let .string(string) = self
             else { return nil }
@@ -1092,12 +1150,14 @@ extension WebPushManager {
         }
         
         /// The json value from a ``json(_:)`` message.
+        @inlinable
         public func json<JSON: Encodable&Sendable>(as: JSON.Type = JSON.self) -> JSON? {
             guard case let .json(json) = self
             else { return nil }
             return json as? JSON
         }
         
+        @inlinable
         public var description: String {
             switch self {
             case .data(let data):
@@ -1106,6 +1166,26 @@ extension WebPushManager {
                 return ".string(\(string))"
             case .json(let json):
                 return ".json(\(json))"
+            }
+        }
+        
+        /// Check to see if a message is potentially too large to be sent to a push service.
+        ///
+        /// - Note: _Some_ push services may still accept larger messages, so you can only truly know if a message is _too_ large by attempting to send it and checking for a ``MessageTooLargeError`` error. However, if a message passes this check, it is guaranteed to not fail for this reason, assuming the push service implements the minimum requirements of the spec, which you can assume for all major browsers. For these reasons, unless you are sending the same message to multiple subscribers, it's often faster to just try sending the message rather than checking before sending.
+        ///
+        /// - Throws: ``MessageTooLargeError`` if the message is too large. Throws another error if encoding fails.
+        @inlinable
+        public func checkMessageSize() throws {
+            switch self {
+            case .data(let data):
+                guard data.count <= WebPushManager.maximumMessageSize
+                else { throw MessageTooLargeError() }
+            case .string(let string):
+                guard string.utf8.count <= WebPushManager.maximumMessageSize
+                else { throw MessageTooLargeError() }
+            case .json(let json):
+                guard try WebPushManager.messageEncoder.encode(json).count <= WebPushManager.maximumMessageSize
+                else { throw MessageTooLargeError() }
             }
         }
     }
