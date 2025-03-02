@@ -547,7 +547,7 @@ extension PushMessage {
         public enum CodingKeys: String, CodingKey {
             case id = "action"
             case label = "title"
-            case destination = "navigation"
+            case destination = "navigate"
             case icon
         }
     }
