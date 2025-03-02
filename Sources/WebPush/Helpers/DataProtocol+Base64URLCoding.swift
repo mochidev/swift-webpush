@@ -19,7 +19,15 @@ extension DataProtocol {
     func base64URLEncodedString() -> String {
         Data(self)
             .base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
+            .transformToBase64URLEncoding()
+    }
+}
+
+extension String {
+    /// Transform a regular Base64 encoded string to a Base64URL encoded one.
+    @usableFromInline
+    func transformToBase64URLEncoding() -> String {
+        self.replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
     }

@@ -86,7 +86,7 @@ extension VAPID.Key: Identifiable {
         
         public init(from decoder: any Decoder) throws {
             let container = try decoder.singleValueContainer()
-            self.rawValue = try container.decode(String.self)
+            self.rawValue = try container.decode(String.self).transformToBase64URLEncoding()
         }
         
         public func encode(to encoder: any Encoder) throws {
