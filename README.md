@@ -204,18 +204,21 @@ You'll also want to serve a `serviceWorker.mjs` file at the root of your server 
 self.addEventListener('push', function(event) {
     const data = event.data?.json() ?? {};
     event.waitUntil((async () => {
+        const notification = data?.notification ?? {}
         /// Try parsing the data, otherwise use fallback content. DO NOT skip sending the notification, as you must display one for every push message that is received or your subscription will be dropped.
-        let title = data?.title ?? "Your App Name";
-        const body = data?.body ?? "New Content Available!";
+        const title = notification.title ?? "Your App Name";
+        const body = notification.body ?? "New Content Available!";
         
         await self.registration.showNotification(title, { 
-            body, 
-            icon: "/notification-icon.png", /// Only some browsers support this.
-            data
+            body,
+            requireInteraction: notification.require_interaction ?? false,
+            ...notification,
         });
     })());
 });
 ```
+
+In the example above, we are using the new **Declarative Push Notification** format for our message payload so the browser can automatically skip requiring the service worker, but you can send send any data payload and interpret it in your service worker should you choose. Note that doing so will require more resources on your user's devices when Declarative Push Notifications are otherwise supported.
 
 > [!NOTE]
 > `.mjs` here allows your code to import other js modules as needed. If you are not using Vapor, please make sure your server uses the correct mime type for this file extension.
@@ -349,7 +352,12 @@ import WebPush
 
 do {
     try await manager.send(
-        json: ["title": "Test Notification", "body": "Hello, World!"],
+        /// We use a declarative push notification to allow newer browsers to deliver the notification to users on our behalf.
+        notification: PushMessage.Notification(
+            destination: URL(string: "https://example.com/notificationDetails")!,
+            title: "Test Notification",
+            body: "Hello, World!"
+        ),
         to: subscriber
         /// If sent from a request, pass the request's logger here to maintain its metadata.
         // logger: request.logger
@@ -366,6 +374,8 @@ do {
 ```
 
 Your service worker will receive this message, decode it, and present it to the user.
+
+You can also send JSON (`send(json: ...)`), data (`send(data: ...)`), or text (`send(string: ...)`) and have your service worker interpret the payload as it sees fit.
 
 > [!NOTE]
 > Although the spec supports it, most browsers do not support silent notifications, and will drop a subscription if they are used.

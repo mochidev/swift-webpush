@@ -7,4 +7,6 @@
 //
 
 /// Common Push Message types.
+///
+/// Currently, only ``PushMessage/Notification`` is defined.
 public enum PushMessage: Sendable {}

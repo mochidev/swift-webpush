@@ -122,6 +122,9 @@ extension PushMessage {
         
         
         /// Initialize a new Declarative Push Notification.
+        ///
+        /// - Important: The entire notification must fit within ``WebPushManager/maximumMessageSize`` once encoded, or sending the notification will fail. Keep this in mind when specifying data to be sent along with the notification.
+        ///
         /// - Parameters:
         ///   - kind: The kind of notification to send. Defaults to ``PushMessage/NotificationKind/declarative``.
         ///   - destination: The destination URL that should be opened when the user interacts with the notification.
@@ -164,6 +167,9 @@ extension PushMessage {
 
 extension PushMessage.Notification where Contents == Never {
     /// Initialize a new Declarative Push Notification.
+    ///
+    /// - Important: The entire notification must fit within ``WebPushManager/maximumMessageSize`` once encoded, or sending the notification will fail. Keep this in mind when specifying data to be sent along with the notification.
+    /// 
     /// - Parameters:
     ///   - kind: The kind of notification to send. Defaults to ``PushMessage/NotificationKind/declarative``.
     ///   - destination: The destination URL that should be opened when the user interacts with the notification.
