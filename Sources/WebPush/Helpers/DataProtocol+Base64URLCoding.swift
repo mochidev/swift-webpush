@@ -51,7 +51,7 @@ extension DataProtocol where Self: RangeReplaceableCollection {
         // Convert to String first so we can use stdlib replacing(_:with:) on any StringProtocol
         var base64String = String(string).replacing("-", with: "+").replacing("_", with: "/")
         while base64String.count % 4 != 0 {
-            base64String = base64String.appending("=")
+            base64String += "="
         }
 
         guard let decodedData = Data(base64Encoded: base64String)
