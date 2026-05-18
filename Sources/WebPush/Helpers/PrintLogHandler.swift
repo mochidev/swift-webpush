@@ -6,12 +6,13 @@
 //  Copyright © 2024 Mochi Development, Inc. All rights reserved.
 //
 
-#if canImport(FoundationEssentials)
-import FoundationEssentials
-#else
-import Foundation
-#endif
 import Logging
+
+#if canImport(FoundationEssentials)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 /// A simple log handler that uses formatted print statements.
 package struct PrintLogHandler: LogHandler {
@@ -19,7 +20,7 @@ package struct PrintLogHandler: LogHandler {
 
     package var logLevel: Logger.Level = .info
     package var metadataProvider: Logger.MetadataProvider?
-    
+
     package init(
         label: String,
         logLevel: Logger.Level = .info,
@@ -68,7 +69,9 @@ package struct PrintLogHandler: LogHandler {
             prettyMetadata = self.prettyMetadata
         }
 
-        print("\(self.timestamp()) [\(level)] \(self.label):\(prettyMetadata.map { " \($0)" } ?? "") [\(source)] \(message)")
+        print(
+            "\(self.timestamp()) [\(level)] \(self.label):\(prettyMetadata.map { " \($0)" } ?? "") [\(source)] \(message)"
+        )
     }
 
     private static func prepareMetadata(
@@ -100,11 +103,14 @@ package struct PrintLogHandler: LogHandler {
         if metadata.isEmpty {
             return nil
         } else {
-            return metadata.lazy.sorted(by: { $0.key < $1.key }).map { "\($0)=\($1)" }.joined(separator: " ")
+            return metadata.lazy.sorted(by: { $0.key < $1.key }).map { "\($0)=\($1)" }.joined(
+                separator: " ")
         }
     }
 
     private func timestamp() -> String {
-        Date().formatted(date: .numeric, time: .complete)
+        // Date.formatted(date:time:) requires full Foundation's FormatStyle which is
+        // not available in FoundationEssentials. ISO8601Format() is available in both.
+        Date().ISO8601Format()
     }
 }
